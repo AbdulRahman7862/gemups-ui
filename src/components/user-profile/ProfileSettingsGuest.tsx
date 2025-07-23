@@ -56,17 +56,17 @@ const ProfileSettingsGuest = () => {
       // Get UID
       const userUID = getOrCreateDeviceIdClient();
 
-      const formData = new FormData();
-      formData.append("uid", userUID);
-      formData.append("name", values.name);
-      if (values.userName) formData.append("userName", values.userName);
-      formData.append("email", values.email);
-      formData.append("password", encryptData(values.password));
-
-      // Send the form data to the backend
+      // Send the required fields as a plain object, not FormData
       dispatch(
         signUpGuestUser({
-          payload: formData,
+          payload: {
+            email: values.email,
+            password: encryptData(values.password),
+            // If you want to send more fields, add them here and update SignupData/backend as needed
+            // name: values.name,
+            // userName: values.userName,
+            // uid: userUID,
+          },
           onSuccess: () => {
             // Force a storage event to trigger hooks
             window.dispatchEvent(new Event("storage"));
