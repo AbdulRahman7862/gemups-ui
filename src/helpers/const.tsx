@@ -303,3 +303,6 @@ export const reviews = [
     date: "10/9/2024, 4:04:30 PM",
   },
 ];
+
+export const PROXY_EXPIRE_DAYS = 90;
+export const PROXY_HOST = "128.14.70.10";

@@ -37,17 +37,27 @@ const Page = () => {
     fetchPricingPlans,
   } = useAppSelector((state) => state.proxy);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [isOtherSellersOpen, setIsOtherSellersOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "reviews">("overview");
   const [selectedTier, setSelectedTier] = useState<(typeof pricingPlans)[0]>(
     pricingPlans[0]
   );
+  const [selectedCountry, setSelectedCountry] = useState<{
+    code: string;
+    name: string;
+    flag: string;
+  }>({ code: "US", name: "USA", flag: "🇺🇸" });
   const [isCopied, setIsCopied] = useState(false);
 
   const handleTierSelect = (tier: any) => {
     setSelectedTier(tier);
-    setQuantity(tier?.quantity);
+    setQuantity(1);
+  };
+
+  const handleCountryChange = (country: { code: string; name: string; flag: string }) => {
+    setSelectedCountry(country);
   };
 
   const closePaymentModal = () => setIsPaymentModalOpen(false);
@@ -59,32 +69,33 @@ const Page = () => {
   };
 
   const calculateTotalPrice = () => {
-    const sortedTiers = [...pricingPlans].sort((a, b) => a.quantity - b.quantity);
-
-    let pricePerPc = sortedTiers[0]?.price;
-
-    for (let i = 0; i < sortedTiers.length; i++) {
-      if (quantity >= sortedTiers[i].quantity) {
-        pricePerPc = sortedTiers[i].price;
-      } else {
-        break;
-      }
-    }
-
-    return (quantity * pricePerPc).toFixed(2);
+    if (!selectedTier) return "0.00";
+    // Price is for 1 product, so multiply by quantity
+    return (quantity * selectedTier.price).toFixed(2);
   };
 
   useEffect(() => {
     if (!id) return;
-    dispatch(getSingleProxy(id));
-    dispatch(getOtherSellers(id));
+    dispatch(getSingleProxy(id)); 
   }, [id, dispatch]);
 
+  // Fetch other sellers when selectedProxy is loaded and has providers
   useEffect(() => {
-    const providerId = otherSellers?.[0]?.id;
+    if (selectedProxy && selectedProxy.providers && selectedProxy.providers.length > 0) {
+      const providerId = selectedProxy.providers[0].providerId;
+      dispatch(getOtherSellers(providerId));
+    }
+  }, [selectedProxy, dispatch]);
+
+  useEffect(() => {
+    let providerId = otherSellers?.[0]?.id;
+    if (!providerId && selectedProxy?.providers?.[0]?.providerId) {
+      providerId = selectedProxy.providers[0].providerId;
+    }
     if (!id || !providerId) return;
+    console.log('DEBUG getProxyPricing params:', { proxyId: id, providerId });
     dispatch(getProxyPricing({ proxyId: id, providerId }));
-  }, [otherSellers]);
+  }, [otherSellers, selectedProxy]);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -97,6 +108,34 @@ const Page = () => {
       setSelectedTier(pricingPlans?.[0]);
     }
   }, [pricingPlans]);
+
+  // Set initial selected country based on supported countries from API
+  useEffect(() => {
+    if (selectedProxy?.supportedCountries?.length > 0) {
+      const supportedCountries = selectedProxy.supportedCountries;
+      const countryMap: { [key: string]: { code: string; name: string; flag: string } } = {
+        "US": { code: "US", name: "USA", flag: "🇺🇸" },
+        "CA": { code: "CA", name: "Canada", flag: "🇨🇦" },
+        "GB": { code: "GB", name: "United Kingdom", flag: "🇬🇧" },
+        "DE": { code: "DE", name: "Germany", flag: "🇩🇪" },
+        "FR": { code: "FR", name: "France", flag: "🇫🇷" },
+        "AU": { code: "AU", name: "Australia", flag: "🇦🇺" },
+        "NL": { code: "NL", name: "Netherlands", flag: "🇳🇱" },
+        "SE": { code: "SE", name: "Sweden", flag: "🇸🇪" },
+        "NO": { code: "NO", name: "Norway", flag: "🇳🇴" },
+        "CH": { code: "CH", name: "Switzerland", flag: "🇨🇭" },
+        "JP": { code: "JP", name: "Japan", flag: "🇯🇵" },
+        "SG": { code: "SG", name: "Singapore", flag: "🇸🇬" },
+      };
+      
+      // Set the first supported country as default
+      const firstSupportedCountry = countryMap[supportedCountries[0]];
+      if (firstSupportedCountry) {
+        setSelectedCountry(firstSupportedCountry);
+      }
+    }
+  }, [selectedProxy]);
+
 
   return (
     <div className="min-h-screen text-white px-4 sm:px-6 md:px-8">
@@ -111,7 +150,7 @@ const Page = () => {
               <div className="flex flex-col md:flex-row justify-between gap-4">
                 <div className="flex items-start gap-4">
                   <Image
-                    src={selectedProxy?.image || shield}
+                    src={selectedProxy?.logo || shield}
                     alt="Proxy Icon"
                     className="w-12 h-12 rounded-full"
                     width={40}
@@ -204,7 +243,11 @@ const Page = () => {
               handleTierSelect={handleTierSelect}
               setQuantity={setQuantity}
               setIsPaymentModalOpen={setIsPaymentModalOpen}
+              setIsCartModalOpen={setIsCartModalOpen}
               otherSellers={otherSellers}
+              selectedProxy={selectedProxy}
+              selectedCountry={selectedCountry}
+              onCountryChange={handleCountryChange}
             />
             <div
               className="bg-[#003b2e] p-4 rounded-xl flex items-center justify-between mt-3 text-white cursor-pointer"
@@ -237,6 +280,8 @@ const Page = () => {
         quantity={quantity}
         totalPrice={calculateTotalPrice()}
         loading={isOrderPaymentLoading || placingOrder}
+        selectedTier={selectedTier}
+        unit={selectedTier?.unit || 'GB'}
       />
       <OtherSellers
         isOpen={isOtherSellersOpen}

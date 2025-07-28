@@ -51,7 +51,9 @@ const proxySlice = createSlice({
         state.selectedProxy = null;
       })
       .addCase(getSingleProxy.fulfilled, (state, action) => {
-        state.selectedProxy = action.payload.data;
+        state.selectedProxy = Array.isArray(action.payload.data)
+          ? action.payload.data[0]
+          : action.payload.data;
         state.isLoading = false;
       })
       .addCase(getSingleProxy.rejected, (state, action) => {

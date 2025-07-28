@@ -5,7 +5,6 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { getProxies } from "@/store/proxies/actions";
 import { ChevronDown, Loader } from "lucide-react";
 import ProxyCard from "./ProxyCard";
-import { getAuthToken, getUserUID } from "@/utils/authCookies";
 import { useRouter } from "next/navigation";
 
 const FILTERS = [
@@ -34,35 +33,19 @@ const Proxy: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const router = useRouter();
-  const [authChecked, setAuthChecked] = useState(false);
 
-  // Auth check effect
+  // Fetch proxies on component mount
   useEffect(() => {
-    const token = getAuthToken();
-    const guestUID = getUserUID();
-    if (!token && !guestUID) {
-      router.replace("/signin");
-    } else {
-      setAuthChecked(true);
-    }
-  }, [router]);
-
-  // Fetch proxies only after auth is checked
-  useEffect(() => {
-    if (authChecked && (!proxies || proxies.length === 0)) {
+    if (!proxies || proxies.length === 0) {
       dispatch(getProxies());
     }
-  }, [authChecked, dispatch, proxies]);
+  }, [dispatch, proxies]);
 
   const toggleFilter = (filter: string) => {
     setActiveFilters((prev) =>
       prev.includes(filter) ? prev.filter((f) => f !== filter) : [...prev, filter]
     );
   };
-
-  if (!authChecked) {
-    return <div className="flex justify-center items-center h-screen"><span>Loading...</span></div>;
-  }
 
   return (
     <>
@@ -146,23 +129,37 @@ const Proxy: React.FC = () => {
             {/* Proxy Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {proxies?.map((proxy, index) => {
-                // Map backend fields to ProxyCard props
+                let lowestPrice: number | null = null;
+                let mainProviderId: string | null = null;
+                if (Array.isArray(proxy.providers) && proxy.providers.length > 0) {
+                  proxy.providers.forEach((provider: any) => {
+                    if (Array.isArray(provider.pricing) && provider.pricing.length > 0) {
+                      provider.pricing.forEach((tier: any) => {
+                        if (typeof tier.price === 'number' && (lowestPrice === null || tier.price < lowestPrice)) {
+                          lowestPrice = tier.price;
+                          mainProviderId = provider.providerId;
+                        }
+                      });
+                    }
+                  });
+                }
+                // Map providers for the card (if needed)
+                const mappedProviders = Array.isArray(proxy.providers)
+                  ? proxy.providers.map((provider: any) => ({
+                      id: provider.providerId,
+                      image: provider.image,
+                      pricing: provider.pricing,
+                    }))
+                  : [];
                 const mappedProxy = {
                   id: proxy._id,
                   image: proxy.logo,
                   rating: proxy.rating,
                   name: proxy.name,
                   features: Array.isArray(proxy.tags) ? proxy.tags : [],
-                  price: proxy.pricePerUnit,
-                  // Providers: backend only gives provider name, so we create a dummy Providers array
-                  Providers: proxy.provider
-                    ? [
-                        {
-                          image: proxy.logo, // Use the same logo for provider image
-                          id: proxy.provider,
-                        },
-                      ]
-                    : [],
+                  price: lowestPrice !== null ? lowestPrice : 0,
+                  Providers: mappedProviders,
+                  mainProviderId,
                 };
                 return <ProxyCard key={index} proxy={mappedProxy} index={index} />;
               })}
@@ -174,4 +171,5 @@ const Proxy: React.FC = () => {
     </>
   );
 };
+
 export default Proxy;

@@ -1,16 +1,16 @@
-import React, { useState } from "react";
-import { Loader, ShoppingCart } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { getAuthToken, getUserUID, setUserUID } from "@/utils/authCookies";
-import { getOrCreateDeviceIdClient } from "@/utils/deviceId";
-import { addUser } from "@/store/user/actions";
+import { addToCart, updateCartItem } from "@/store/bookings/actions";
 import { toast } from "react-toastify";
-import { addToCart, getCartByUser, updateCartItem } from "@/store/bookings/actions";
+import { getAuthToken } from "@/utils/authCookies";
+import { Loader, ShoppingCart } from "lucide-react";
 
 interface Tier {
   isPopular: unknown;
   quantity: number;
   price: number;
+  unit: string;
+  userDataAmount: number;
 }
 
 interface PricingSelectorProps {
@@ -23,7 +23,11 @@ interface PricingSelectorProps {
   handleTierSelect: (tier: Tier) => void;
   setQuantity: React.Dispatch<React.SetStateAction<number>>;
   setIsPaymentModalOpen: (value: boolean) => void;
+  setIsCartModalOpen?: (value: boolean) => void;
   otherSellers?: any[];
+  selectedProxy?: any;
+  selectedCountry?: { code: string; name: string; flag: string };
+  onCountryChange?: (country: { code: string; name: string; flag: string }) => void;
 }
 
 const PricingSelector: React.FC<PricingSelectorProps> = ({
@@ -36,8 +40,14 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
   handleTierSelect,
   setQuantity,
   setIsPaymentModalOpen,
+  setIsCartModalOpen,
   otherSellers,
+  selectedProxy,
+  selectedCountry,
+  onCountryChange,
 }) => {
+  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
+  const countryDropdownRef = useRef<HTMLDivElement>(null);
   const dispatch = useAppDispatch();
   const { addingtoCart, updatingItem, cartItems } = useAppSelector(
     (state) => state.booking
@@ -46,48 +56,72 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
   const popularTier = pricingPlans?.find((tier) => tier?.isPopular);
   const otherTiers = pricingPlans?.filter((tier) => !tier?.isPopular);
 
-  const handleGuestLogin = async () => {
-    setIsProcessingGuest(true);
-    try {
-      let uid = getUserUID();
-
-      if (!uid) {
-        uid = getOrCreateDeviceIdClient();
-        if (!uid) throw new Error("Failed to generate device ID");
-      }
-
-      const payload = { uid };
-      const user = await dispatch(
-        addUser({
-          payload,
-          onSuccess: () => {
-            setUserUID(uid);
-          },
-        })
-      ).unwrap();
-
-      return user?.data;
-    } catch (error) {
-      console.error("Guest login failed:", error);
-      toast.error("Failed to setup guest session");
-      throw error;
-    } finally {
-      setIsProcessingGuest(false);
+  // Helper to get providerId using the same logic as the parent page
+  const getProviderId = () => {
+    let providerId = otherSellers?.[0]?.id;
+    if (!providerId && selectedProxy?.providers?.[0]?.providerId) {
+      providerId = selectedProxy.providers[0].providerId;
     }
+    return providerId;
   };
-  const handleAddToCart = async () => {
-    const token = getAuthToken();
-    const userUID = getUserUID();
 
-    if (!token && !userUID) {
-      try {
-        await handleGuestLogin();
-      } catch (error) {
-        console.error("Guest login failed:", error);
-        return;
+  const providerId = getProviderId();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (countryDropdownRef.current && !countryDropdownRef.current.contains(event.target as Node)) {
+        setIsCountryDropdownOpen(false);
       }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleAddToCart = async () => {
+    if (!providerId) {
+      toast.error("No provider found for this product.");
+      return;
     }
-    const existingItem = cartItems.find((item) => item?.Product?.id == productId);
+    const token = getAuthToken();
+
+    if (!token) {
+      // Show login prompt instead of auto-creating guest session
+      toast.info("Please login or register to add items to cart");
+      // You can redirect to login page or show a login modal here
+      return;
+    }
+    
+    const currentTierId = `${selectedTier?.userDataAmount}-${selectedTier?.unit}`;
+    const existingItem = cartItems.find((item) => 
+      item?.Product?.id == productId && 
+      item?.providerId == providerId &&
+      item?.tierId === currentTierId
+    );
+
+    // Debug log for addToCart params
+    const addToCartPayload = {
+      productId: String(productId),
+      quantity: Number(quantity),
+      providerId: String(providerId),
+      userDataAmount: selectedTier?.userDataAmount || 1,
+      unit: selectedTier?.unit || 'GB',
+      price: selectedTier?.price || 0,
+      tierId: `${selectedTier?.userDataAmount}-${selectedTier?.unit}`, // Unique identifier for the tier
+      isPopular: selectedTier?.isPopular || false,
+      // Include the full tier information for proper display
+      tier: {
+        userDataAmount: selectedTier?.userDataAmount,
+        unit: selectedTier?.unit,
+        price: selectedTier?.price,
+        isPopular: selectedTier?.isPopular,
+        quantity: selectedTier?.quantity
+      }
+    };
+    console.log('DEBUG addToCart payload:', addToCartPayload);
 
     try {
       if (existingItem) {
@@ -101,24 +135,35 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
             },
           })
         ).unwrap();
-        toast.success("Cart item updated!");
+        toast.success("Cart updated successfully!");
       } else {
-        await dispatch(
-          addToCart({
-            productId: Number(productId),
-            quantity,
-            providerId: otherSellers?.[0]?.id,
-          })
-        ).unwrap();
+        await dispatch(addToCart(addToCartPayload)).unwrap();
+        toast.success("Added to cart successfully!");
       }
-      dispatch(getCartByUser());
+
+      // Open cart drawer instead of payment modal
+      if (setIsCartModalOpen) {
+        setIsCartModalOpen(true);
+      }
     } catch (error: any) {
-      console.error(error?.message || "Failed to update cart");
+      console.error("Add to cart error:", error);
+      toast.error(error?.message || "Failed to add to cart");
     }
   };
 
   return (
     <div className="bg-[#090E15] p-6 rounded-xl text-white font-sans">
+      {/* Current Provider Display */}
+      {selectedProxy?.providers?.[0]?.providerId && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-white">Current provider:</span>
+            <span className="text-sm font-medium text-white">
+              {selectedProxy.providers[0].providerId}
+            </span>
+          </div>
+        </div>
+      )}
       {fetchPricingPlans ? (
         <>
           <div className="bg-[#1A1F2B] animate-pulse rounded-lg h-20 mb-5 w-full" />
@@ -155,8 +200,8 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
                 Popular
               </div>
               <div className="text-white text-lg font-bold mb-1">
-                {popularTier?.quantity}{" "}
-                <span className="text-sm font-medium text-gray-400">GB</span> /{" "}
+                {popularTier?.userDataAmount}{" "}
+                <span className="text-sm font-medium text-gray-400">{popularTier?.unit}</span> /{" "}
                 <span className="text-lg font-medium text-[#13F195]">
                   ${popularTier?.price?.toFixed(1)}
                 </span>
@@ -175,8 +220,8 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
                 }`}
               >
                 <div className="text-white text-base font-bold">
-                  {tier?.quantity}{" "}
-                  <span className="text-sm text-gray-400 font-medium">GB</span>
+                  {tier?.userDataAmount}{" "}
+                  <span className="text-sm text-gray-400 font-medium">{tier?.unit}</span>
                 </div>
                 <div className="text-[#13F195] text-sm font-semibold">
                   ${tier?.price?.toFixed(1)}
@@ -184,6 +229,94 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
               </div>
             ))}
           </div>
+          
+          {/* Country Dropdown */}
+          {selectedCountry && onCountryChange && selectedProxy?.supportedCountries?.length > 0 && (
+            <div className="mb-4" ref={countryDropdownRef}>
+              <label className="block text-sm font-medium text-white mb-2">
+                Country
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)}
+                  className="w-full h-[40px] flex items-center justify-between px-2 py-2 bg-[#1A1F2B] border border-gray-600 rounded-lg text-white hover:border-gray-500 transition-colors"
+                  style={{
+                    gap: "8px",
+                    padding: "8px",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{selectedCountry.flag}</span>
+                    <span className="text-sm font-medium">{selectedCountry.name}</span>
+                  </div>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`text-gray-400 transition-transform ${
+                      isCountryDropdownOpen ? "rotate-180" : ""
+                    }`}
+                  >
+                    <polyline points="6,9 12,15 18,9"></polyline>
+                  </svg>
+                </button>
+
+                {isCountryDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-[#1A1F2B] border border-gray-600 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                    {(() => {
+                      // Get supported countries from API response
+                      const supportedCountries = selectedProxy?.supportedCountries || [];
+                      
+                      // Map country codes to full country data
+                      const countryMap: { [key: string]: { code: string; name: string; flag: string } } = {
+                        "US": { code: "US", name: "USA", flag: "🇺🇸" },
+                        "CA": { code: "CA", name: "Canada", flag: "🇨🇦" },
+                        "GB": { code: "GB", name: "United Kingdom", flag: "🇬🇧" },
+                        "DE": { code: "DE", name: "Germany", flag: "🇩🇪" },
+                        "FR": { code: "FR", name: "France", flag: "🇫🇷" },
+                        "AU": { code: "AU", name: "Australia", flag: "🇦🇺" },
+                        "NL": { code: "NL", name: "Netherlands", flag: "🇳🇱" },
+                        "SE": { code: "SE", name: "Sweden", flag: "🇸🇪" },
+                        "NO": { code: "NO", name: "Norway", flag: "🇳🇴" },
+                        "CH": { code: "CH", name: "Switzerland", flag: "🇨🇭" },
+                        "JP": { code: "JP", name: "Japan", flag: "🇯🇵" },
+                        "SG": { code: "SG", name: "Singapore", flag: "🇸🇬" },
+                      };
+                      
+                      // Filter to only show supported countries
+                      const availableCountries = supportedCountries
+                        .map((code: string) => countryMap[code])
+                        .filter((country: any): country is { code: string; name: string; flag: string } => Boolean(country));
+                      
+                      return availableCountries;
+                    })().map((country: { code: string; name: string; flag: string }) => (
+                      <button
+                        key={country.code}
+                        type="button"
+                        onClick={() => {
+                          onCountryChange(country);
+                          setIsCountryDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-white hover:bg-gray-700 transition-colors"
+                        style={{ gap: "8px", padding: "8px" }}
+                      >
+                        <span className="text-lg">{country.flag}</span>
+                        <span className="text-sm">{country.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mb-5 flex-wrap gap-y-2">
             <div className="flex items-center space-x-2">
               <button
@@ -204,13 +337,25 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
                   }
                   const value = parseInt(val);
                   if (!isNaN(value) && value >= 0) {
+                    if (selectedTier && value > selectedTier.quantity) {
+                      toast.error(`Available amount for this in stock is ${selectedTier.quantity}`);
+                      setQuantity(selectedTier.quantity);
+                      return;
+                    }
                     setQuantity(value);
                   }
                 }}
                 className="w-20 text-center bg-gray-700 rounded text-lg text-white px-2 py-1 appearance-none focus:outline-none focus:ring-2 focus:ring-[#13F195]"
               />
               <button
-                onClick={() => setQuantity((q) => q + 1)}
+                onClick={() => {
+                  const newQuantity = quantity + 1;
+                  if (selectedTier && newQuantity > selectedTier.quantity) {
+                    toast.error(`Available amount for this in stock is ${selectedTier.quantity}`);
+                    return;
+                  }
+                  setQuantity(newQuantity);
+                }}
                 className="px-3 py-1 bg-gray-700 rounded text-lg text-[#7A8895]"
               >
                 +
@@ -227,7 +372,7 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
              addingtoCart ? "opacity-70 cursor-not-allowed" : ""
            }`}
               disabled={
-                addingtoCart || updatingItem || quantity === 0 || isProcessingGuest
+                addingtoCart || updatingItem || quantity === 0 || isProcessingGuest || !providerId
               }
               onClick={handleAddToCart}
             >

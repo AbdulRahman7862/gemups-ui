@@ -3,19 +3,27 @@
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addUser, getUserDetail } from "@/store/user/actions";
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { getAuthToken, getUserUID, setUserUID } from "@/utils/authCookies";
 
 // NOTE: getAuthToken and getUserUID now use localStorage instead of cookies.
 const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
   const dispatch = useAppDispatch();
   const router = useRouter();
+  const pathname = usePathname();
   const user = useAppSelector((state) => state.user.user);
+
+  // Define public routes that don't require authentication
+  const publicRoutes = ["/proxy", "/proxy/detail", "/signin", "/signup"];
+  const isPublicRoute = publicRoutes.some(route => 
+    pathname === route || pathname.startsWith(`${route}/`)
+  );
 
   useEffect(() => {
     const initializeAuth = async () => {
       const token = getAuthToken();
       const uid = getUserUID();
+      
       try {
         if (token) {
           // TODO: Implement user profile fetch when endpoint is available
@@ -29,16 +37,20 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
         } else if (uid) {
           // No token but has UID - proceed as guest
           await handleAddUserFlow(uid);
-        } else {
-          // If neither token nor UID exists, redirect to login
+        } else if (!isPublicRoute) {
+          // No token and no UID - redirect to login
           router.replace("/signin");
         }
       } catch (error) {
         console.error("Authentication initialization error:", error);
-        // On error, redirect to login
-        router.replace("/signin");
+        // Only redirect to login on error if not on a public route
+        if (!isPublicRoute) {
+          router.replace("/signin");
+        }
       }
     };
+
+
 
     const handleAddUserFlow = async (uid: string) => {
       try {
@@ -68,7 +80,7 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
     return () => {
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, [dispatch, router]);
+  }, [dispatch, router, pathname, isPublicRoute]);
 
   return <>{children}</>;
 };

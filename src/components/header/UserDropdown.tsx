@@ -10,6 +10,8 @@ import Image from "next/image";
 import PaymentBalanceModal from "../common/Modals/PaymentBalanceModal";
 import { createPayment } from "@/store/bookings/actions";
 import { toast } from "react-toastify";
+import { initiateWalletDeposit } from "@/store/user/actions";
+import { getUserBalance } from "@/store/user/actions";
 
 export default function UserDropdown() {
   const dispatch = useAppDispatch();
@@ -20,6 +22,32 @@ export default function UserDropdown() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
+  const [depositLoading, setDepositLoading] = useState(false);
+
+
+  // useEffect(() => {
+  //   const checkPendingDeposit = async () => {
+  //     const orderId = localStorage.getItem("walletDepositOrderId");
+  //     if (!orderId) return;
+  //     try {
+  //       const result = await dispatch(
+  //         checkWalletDepositStatus({ orderId })
+  //       ).unwrap();
+  //       if (result.balanceCredited) {
+  //         dispatch(getUserBalance());
+  //         localStorage.removeItem("walletDepositOrderId");
+  //         toast.success(result.message);
+  //       } else if (!result.success) {
+  //         localStorage.removeItem("walletDepositOrderId");
+  //         toast.error(result.message);
+  //       }
+  //       // If pending, do nothing (could poll if desired)
+  //     } catch (error) {
+  //       // Optionally handle error
+  //     }
+  //   };
+  //   checkPendingDeposit();
+  // }, [dispatch]);
 
   function toggleDropdown(e: React.MouseEvent<HTMLButtonElement>) {
     e.stopPropagation();
@@ -54,25 +82,26 @@ export default function UserDropdown() {
       toast.error("Please sign in to make a payment");
       return;
     }
-
+    setDepositLoading(true);
     try {
       const result = await dispatch(
-        createPayment({
-          amount: amount.toString(),
-          currency: "USD",
-        })
+        initiateWalletDeposit({ amount })
       ).unwrap();
 
-      if (result?.data?.result?.url) {
-        window.location.href = result.data.result.url;
+      if (result?.paymentUrl && result?.order_id) {
+        localStorage.setItem("walletDepositOrderId", result.order_id);
+        window.location.href = result.paymentUrl;
       } else {
-        throw new Error("Payment URL not found in response");
+        throw new Error("Payment URL or order_id not found in response");
       }
     } catch (error) {
-      console.error("Payment processing failed:", error);
       toast.error("Failed to initiate payment");
+    } finally {
+      setDepositLoading(false);
     }
   };
+
+
 
   return (
     <>
@@ -108,7 +137,7 @@ export default function UserDropdown() {
               fill="#13F195"
             />
           </svg>
-          <span>{walletBalance ? walletBalance.toFixed(2) : "0.00"}$</span>
+          <span>{walletBalance !== null ? walletBalance.toFixed(2) : "0.00"}$</span>
         </button>
         <div className="relative">
           <button onClick={toggleDropdown} className="flex items-center gap-1 text-white">
@@ -141,7 +170,7 @@ export default function UserDropdown() {
               </svg>
             )}
             <span className="text-[16px] hidden sm:block whitespace-nowrap">
-              {user?.userName || "Guest"}
+              {user?.email || "Guest"}
             </span>
             <svg
               width="7"
@@ -243,7 +272,7 @@ export default function UserDropdown() {
           isOpen={isBalanceModalOpen}
           onClose={() => setIsBalanceModalOpen(false)}
           onProceed={handlePayment}
-          loading={isCreatePaymentLoading}
+          loading={depositLoading}
         />
       )}
     </>

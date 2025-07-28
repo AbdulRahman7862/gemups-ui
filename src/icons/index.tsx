@@ -6,6 +6,9 @@ import EyeIcon from "./eye.svg";
 import EyeCloseIcon from "./eye-close.svg";
 import ChevronLeftIcon from "./chevron-left.svg";
 import PlugInIcon from "./plug-in.svg";
+import HomeIcon from "./home.svg";
+import WifiIcon from "./wifi.svg";
+import ServerIcon from "./server.svg";
 
 export {
   CloseIcon,
@@ -16,4 +19,7 @@ export {
   EyeCloseIcon,
   ChevronLeftIcon,
   PlugInIcon,
+  HomeIcon,
+  WifiIcon,
+  ServerIcon,
 };

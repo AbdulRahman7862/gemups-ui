@@ -7,13 +7,10 @@ import Link from "next/link";
 import React, { useState } from "react";
 import { ErrorMessage, Formik } from "formik";
 import * as Yup from "yup";
-import { addUser, loginUser } from "@/store/user/actions";
+import { loginUser, initializeGuestUserAction } from "@/store/user/actions";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useRouter } from "next/navigation";
 import { BeatLoader } from "react-spinners";
-import { getUserUID, setUserUID } from "@/utils/authCookies";
-import { getOrCreateDeviceIdClient } from "@/utils/deviceId";
-import { encryptData } from "@/utils/crypto";
 
 export default function SignInForm() {
   const dispatch = useAppDispatch();
@@ -73,34 +70,16 @@ export default function SignInForm() {
   };
 
   const handleGuestLogin = async () => {
-    let uid = getUserUID();
-
-    // If UID is not found in cookie, fetch it
-    if (!uid) {
-      try {
-        uid = getOrCreateDeviceIdClient();
-      } catch (error) {
-        console.error("Failed to generate device ID guest login:", error);
-        return;
-      }
-    }
-
-    // Call addUser whether the UID was fetched or from cookie
-    if (uid) {
-      try {
-        const payload = { uid };
-        await dispatch(
-          addUser({
-            payload,
-            onSuccess: () => {
-              setUserUID(uid);
-              router.push("/proxy");
-            },
-          })
-        );
-      } catch (error) {
-        console.error("Failed to dispatch addUser guest login:", error);
-      }
+    try {
+      await dispatch(
+        initializeGuestUserAction({
+          onSuccess: () => {
+            router.push("/proxy");
+          },
+        })
+      );
+    } catch (error) {
+      console.error("Failed to initialize guest user:", error);
     }
   };
 

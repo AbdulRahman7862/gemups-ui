@@ -4,20 +4,24 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
-import { ChevronDownIcon, LockIcon, PlugInIcon } from "../icons/index";
+import { ChevronDownIcon, LockIcon, PlugInIcon, HomeIcon, WifiIcon, ServerIcon } from "../icons/index";
 
 type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
-  subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
+  subItems?: { name: string; path: string; icon?: React.ReactNode; pro?: boolean; new?: boolean }[];
 };
 
 const navItems: NavItem[] = [
   {
     icon: <LockIcon />,
     name: "Proxy",
-    path: "/proxy",
+    subItems: [
+      { name: "Residential", path: "/", icon: <HomeIcon /> },
+      { name: "ISP", path: "/", icon: <WifiIcon /> },
+      { name: "Data Center", path: "/", icon: <ServerIcon /> },
+    ],
   },
 ];
 
@@ -120,6 +124,11 @@ const AppSidebar: React.FC = () => {
                           : "menu-dropdown-item-inactive"
                       }`}
                     >
+                      {subItem.icon && (
+                        <span className="w-5 h-5 mr-2">
+                          {subItem.icon}
+                        </span>
+                      )}
                       {subItem.name}
                       <span className="flex items-center gap-1 ml-auto">
                         {subItem.new && (

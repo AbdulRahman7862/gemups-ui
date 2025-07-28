@@ -10,6 +10,13 @@ import {
   UserBalanceResponse,
 } from "./interface";
 import { setAuthToken } from "@/utils/authCookies";
+import { 
+  createGuestUser, 
+  loginGuestUser, 
+  convertToRegularUser, 
+  initializeGuestUser,
+  ConvertToRegularUserData 
+} from "@/utils/guestUser";
 
 export const loginUser = createAsyncThunk<any, LoginData, { rejectValue: any }>(
   "user/login",
@@ -176,16 +183,135 @@ export const deleteAssetByType = createAsyncThunk(
   }
 );
 
+export const depositToWallet = createAsyncThunk<any, { amount: number }, { rejectValue: any }>(
+  "user/depositToWallet",
+  async ({ amount }, thunkAPI) => {
+    try {
+      const response = await axiosInstance.post<any>("/api/wallet/deposit", { amount });
+      return response.data;
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to initiate deposit");
+      return thunkAPI.rejectWithValue(error.response?.data || "Failed to initiate deposit");
+    }
+  }
+);
+
 export const getUserBalance = createAsyncThunk<UserBalanceResponse, void>(
   "user/getUserBalance",
   async (_, thunkAPI) => {
     try {
-      const response = await axiosInstance.get(`/api/auth/user/balance`);
-      // Removed console.log to prevent performance issues
+      const response = await axiosInstance.get(`/api/wallet/balance`);
       return response.data;
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to fetch user balance");
       return thunkAPI.rejectWithValue(error.response?.data || "Unknown error");
+    }
+  }
+);
+
+// Initiate wallet deposit
+export const initiateWalletDeposit = createAsyncThunk(
+  "user/initiateWalletDeposit",
+  async ({ amount }: { amount: number }, thunkAPI) => {
+    try {
+      const response = await axiosInstance.post("/api/wallet/deposit", { amount });
+      return response.data;
+    } catch (error: any) {
+      return thunkAPI.rejectWithValue(error.response?.data || { message: error.message });
+    }
+  }
+);
+
+// Check wallet deposit status - DISABLED: Using webhook instead
+// export const checkWalletDepositStatus = createAsyncThunk(
+//   "user/checkWalletDepositStatus",
+//   async ({ orderId }: { orderId: string }, thunkAPI) => {
+//     try {
+//       const response = await axiosInstance.get(`/api/wallet/deposit/status/${orderId}`);
+//       return response.data;
+//     } catch (error: any) {
+//       return thunkAPI.rejectWithValue(error.response?.data || { message: error.message });
+//     }
+//   }
+// );
+
+// Guest User Actions
+export const createGuestUserAction = createAsyncThunk<any, { onSuccess?: () => void }, { rejectValue: any }>(
+  "user/createGuestUser",
+  async ({ onSuccess }, thunkAPI) => {
+    try {
+      const response = await createGuestUser();
+      onSuccess?.();
+      return {
+        success: response.success,
+        data: {
+          user: response.data.user,
+          token: response.data.token,
+        },
+        message: response.message || "Guest user created successfully",
+      };
+    } catch (error: any) {
+      return thunkAPI.rejectWithValue(error.message || "Failed to create guest user");
+    }
+  }
+);
+
+export const loginGuestUserAction = createAsyncThunk<any, { onSuccess?: () => void }, { rejectValue: any }>(
+  "user/loginGuestUser",
+  async ({ onSuccess }, thunkAPI) => {
+    try {
+      const response = await loginGuestUser();
+      onSuccess?.();
+      return {
+        success: response.success,
+        data: {
+          user: response.data.user,
+          token: response.data.token,
+        },
+        message: response.message || "Guest user logged in successfully",
+      };
+    } catch (error: any) {
+      return thunkAPI.rejectWithValue(error.message || "Failed to login guest user");
+    }
+  }
+);
+
+export const initializeGuestUserAction = createAsyncThunk<any, { onSuccess?: () => void }, { rejectValue: any }>(
+  "user/initializeGuestUser",
+  async ({ onSuccess }, thunkAPI) => {
+    try {
+      const response = await initializeGuestUser();
+      onSuccess?.();
+      return {
+        success: response.success,
+        data: {
+          user: response.data.user,
+          token: response.data.token,
+        },
+        message: response.message || "Guest user initialized successfully",
+      };
+    } catch (error: any) {
+      return thunkAPI.rejectWithValue(error.message || "Failed to initialize guest user");
+    }
+  }
+);
+
+export const convertGuestToRegularUserAction = createAsyncThunk<any, { payload: ConvertToRegularUserData; onSuccess?: () => void }, { rejectValue: any }>(
+  "user/convertGuestToRegularUser",
+  async ({ payload, onSuccess }, thunkAPI) => {
+    try {
+      const response = await convertToRegularUser(payload);
+      onSuccess?.();
+      return {
+        success: response.success,
+        data: {
+          user: response.data.user,
+          token: response.data.token,
+        },
+        message: response.message || "Successfully converted to regular user",
+      };
+    } catch (error: any) {
+      return thunkAPI.rejectWithValue(error.message || "Failed to convert to regular user");
     }
   }
 );

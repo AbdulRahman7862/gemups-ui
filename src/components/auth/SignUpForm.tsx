@@ -7,7 +7,7 @@ import Link from "next/link";
 import React, { useState } from "react";
 import { ErrorMessage, Formik } from "formik";
 import * as Yup from "yup";
-import { singupUser } from "@/store/user/actions";
+import { singupUser, initializeGuestUserAction } from "@/store/user/actions";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useRouter } from "next/navigation";
 import { BeatLoader } from "react-spinners";
@@ -56,6 +56,20 @@ export default function SignUpForm() {
       );
     } catch (error) {
       console.error("Error submitting form:", error);
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    try {
+      await dispatch(
+        initializeGuestUserAction({
+          onSuccess: () => {
+            router.push("/proxy");
+          },
+        })
+      );
+    } catch (error) {
+      console.error("Failed to initialize guest user:", error);
     }
   };
 
@@ -232,6 +246,25 @@ export default function SignUpForm() {
             </Formik>
 
             <div className="mt-6 space-y-4">
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                  <button
+                    onClick={handleGuestLogin}
+                    className="text-[#13F195] underline hover:text-[#10D286] transition-colors font-semibold"
+                  >
+                    Continue as a Guest
+                  </button>
+                </p>
+              </div>
+
+              <div className="relative flex items-center justify-center sm:justify-start">
+                <div className="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
+                <span className="mx-4 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                  OR
+                </span>
+                <div className="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
+              </div>
+
               <div className="text-center">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
                   Already have an account?{" "}

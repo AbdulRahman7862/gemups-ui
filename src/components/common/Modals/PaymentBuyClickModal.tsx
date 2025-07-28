@@ -1,10 +1,8 @@
 import { Modal } from "@/components/ui/modal";
-import { createPaymentOrder } from "@/store/bookings/actions";
+import { createPaymentOrder, checkOrderStatus, getOrdersByUser, prolongProxyOrder } from "@/store/bookings/actions";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { getProxyPricing } from "@/store/proxies/actions";
-import { addUser } from "@/store/user/actions";
-import { getAuthToken, getUserUID, setUserUID } from "@/utils/authCookies";
-import { getOrCreateDeviceIdClient } from "@/utils/deviceId";
+import { getAuthToken } from "@/utils/authCookies";
 import { Loader } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
@@ -18,7 +16,31 @@ interface PaymentBuyClickModalProps {
   orderId?: string;
   currentPage?: number;
   activeTab?: string;
+  isProlong?: boolean;
+  proxyDetails?: {
+    username: string;
+    expire: string;
+    order_flow: string;
+  } | null;
 }
+
+// Utility function to format the quantity with correct unit
+const formatQuantityWithUnit = (tier: any) => {
+  if (!tier) return "0";
+  
+  // Check if the tier has a unit property
+  if (tier.unit) {
+    return `${tier.quantity} ${tier.unit}`;
+  }
+  
+  // Check if the tier has userDataAmount and unit properties
+  if (tier.userDataAmount && tier.unit) {
+    return `${tier.userDataAmount} ${tier.unit}`;
+  }
+  
+  // Fallback to quantity with GB (for backward compatibility)
+  return `${tier.quantity} GB`;
+};
 
 const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
   isOpen,
@@ -28,10 +50,12 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
   orderId,
   currentPage,
   activeTab,
+  isProlong = false,
+  proxyDetails,
 }) => {
   const dispatch = useAppDispatch();
   const { pricingPlans, fetchPricingPlans } = useAppSelector((state) => state.proxy);
-  const { isOrderPaymentLoading, placingOrder } = useAppSelector((state) => state.booking);
+  const { isOrderPaymentLoading, placingOrder, checkingOrderStatus } = useAppSelector((state) => state.booking);
   const popularTier = pricingPlans?.find((tier) => tier.isPopular);
   const otherTiers = pricingPlans?.filter((tier) => !tier?.isPopular);
   const [quantity, setQuantity] = useState(1);
@@ -41,6 +65,7 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
 
   const handleTierSelect = (tier: any) => {
     if (!tier) return;
+    console.log('DEBUG: Tier selected:', tier);
     setSelectedTier(tier);
     setQuantity(tier?.quantity);
   };
@@ -62,40 +87,6 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
     return (quantity * pricePerPc).toFixed(2);
   };
 
-  const handleGuestLogin = async () => {
-    setIsProcessingGuest(true);
-    let uid = getUserUID();
-
-    try {
-      // If UID is not found in cookie, fetch it
-      if (!uid) {
-        uid = getOrCreateDeviceIdClient();
-        if (!uid) {
-          toast.error("Failed to generate guest session");
-          return false;
-        }
-      }
-
-      const payload = { uid };
-      await dispatch(
-        addUser({
-          payload,
-          onSuccess: () => {
-            setUserUID(uid!);
-          },
-        })
-      ).unwrap();
-
-      return true;
-    } catch (error) {
-      console.error("Guest login failed:", error);
-      toast.error("Failed to initialize guest session");
-      return false;
-    } finally {
-      setIsProcessingGuest(false);
-    }
-  };
-
   const handleBuyClick = async () => {
     if (!selectedTier) {
       toast.error("Please select a pricing tier");
@@ -108,34 +99,70 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
     }
 
     const token = getAuthToken();
-    const userUID = getUserUID();
 
-    if (!token && !userUID) {
-      try {
-        const guestSuccess = await handleGuestLogin();
-        if (!guestSuccess) {
-          return;
-        }
-      } catch (error) {
-        console.error("Guest login error:", error);
-        toast.error("Failed to setup guest account");
-        return;
-      }
+    if (!token) {
+      // Show login prompt instead of auto-creating guest session
+      toast.info("Please login or register to make a purchase");
+      // You can redirect to login page or show a login modal here
+      return;
     }
 
+    console.log("DEBUG: Starting direct payment process with payload:", {
+      productId,
+      quantity,
+      providerId,
+      selectedTier
+    });
+
     try {
-      const orderPayload = {
-        productId:Number(productId),
-        currency: "USD",
-        isOrder: true,
-        quantity,
-        type: "direct",
-        providerId,
-      };
+              const orderPayload = {
+          productId:Number(productId),
+          currency: "USD",
+          isOrder: true,
+          quantity,
+          type: "direct",
+          providerId,
+          // Add additional fields to ensure single order creation
+          createSingleOrder: true,
+          orderCount: 1,
+          // Add prolong-specific fields
+          ...(isProlong && orderId && {
+            isProlong: true,
+            existingOrderId: orderId,
+            // Add flow and expire values for prolong flows
+            flow: (() => {
+              if (!selectedTier) return (1 * 1024 * 1024 * 1024).toString(); // Default to 1 GB
+              
+              const amount = selectedTier.userDataAmount || selectedTier.quantity || 1;
+              const unit = selectedTier.unit || 'GB';
+              
+              // Convert to bytes based on unit
+              if (unit.toUpperCase() === 'GB') {
+                return (amount * 1024 * 1024 * 1024).toString();
+              } else if (unit.toUpperCase() === 'MB') {
+                return (amount * 1024 * 1024).toString();
+              } else if (unit.toUpperCase() === 'KB') {
+                return (amount * 1024).toString();
+              } else {
+                // Default to bytes
+                return amount.toString();
+              }
+            })(),
+            expire: (Math.floor(Date.now() / 1000) + (90 * 24 * 60 * 60)).toString() // 90 days from now
+          })
+        };
+
+      // Clear any old pending order before starting new payment
+      localStorage.removeItem("pendingOrderId");
 
       const result = await dispatch(createPaymentOrder(orderPayload)).unwrap();
 
+      console.log("DEBUG: Payment order created successfully:", result);
+
       if (result?.data?.result?.url) {
+        // Store order_id for status checking when user returns
+        localStorage.setItem("pendingOrderId", result.data.result.order_id);
+        console.log("DEBUG: Stored order_id and redirecting to:", result.data.result.url);
         window.location.href = result.data.result.url;
       } else {
         throw new Error("Payment URL not found in response");
@@ -157,16 +184,52 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
     dispatch(getProxyPricing({ proxyId: productId, providerId }));
   }, [providerId, productId, dispatch]);
 
+  // Check for pending orders when component mounts
+  useEffect(() => {
+    const checkPendingOrder = async () => {
+      const pendingOrderId = localStorage.getItem("pendingOrderId");
+      if (!pendingOrderId) return;
+      
+      try {
+        const result = await dispatch(checkOrderStatus(pendingOrderId)).unwrap();
+        if (result.success && result.data.status === 'completed') {
+          // Order completed successfully
+          localStorage.removeItem("pendingOrderId");
+          toast.success("Payment completed! Your proxy has been created.");
+          // Refresh orders to show the new proxy
+          dispatch(getOrdersByUser({ page: 1, limit: 10, type: 'all' }));
+        } else if (result.success && result.data.status === 'failed') {
+          // Order failed
+          localStorage.removeItem("pendingOrderId");
+          toast.error("Payment failed. Please try again.");
+        } else if (result.success && result.data.status === 'pending') {
+          // Order is still pending - this is normal, don't show any message
+          console.log("Order is still pending:", pendingOrderId);
+        } else {
+          // Unknown status or error - clear the old order_id
+          localStorage.removeItem("pendingOrderId");
+          console.log("Clearing old order_id due to unknown status:", result);
+        }
+      } catch (error) {
+        // If there's an error checking the order, it might be an old/invalid order_id
+        localStorage.removeItem("pendingOrderId");
+        console.error("Failed to check order status, clearing old order_id:", error);
+      }
+    };
+    
+    checkPendingOrder();
+  }, [dispatch]);
+
   // Set initial quantity when popular tier loads
   useEffect(() => {
-    if (pricingPlans?.length > 0 && popularTier) {
+    if (pricingPlans?.length > 0) {
       const initialTier = popularTier || pricingPlans[0];
-      if (initialTier) {
+      if (initialTier && !selectedTier) {
         setQuantity(initialTier.quantity);
         setSelectedTier(initialTier);
       }
     }
-  }, [pricingPlans, popularTier]);
+  }, [pricingPlans, popularTier, selectedTier]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -182,7 +245,9 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
       onClose={handleClose}
       className="max-w-[520px] bg-[#090E15] p-6 rounded-xl"
     >
-      <h4 className="font-bold text-white text-2xl mb-6">Payment</h4>
+      <h4 className="font-bold text-white text-2xl mb-6">
+        {isProlong ? "Prolong Proxy" : "Payment"}
+      </h4>
       {/* Amount Selection */}
       <div className="mb-3 sm:mb-4">
         <div className="bg-[#090E15] mt-7 rounded-xl text-white font-sans">
@@ -205,8 +270,7 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
                     Popular
                   </div>
                   <div className="text-white text-lg font-bold mb-1">
-                    {popularTier.quantity}{" "}
-                    <span className="text-sm font-medium text-gray-400">GB</span> /{" "}
+                    {formatQuantityWithUnit(popularTier)}{" "}
                     <span className="text-lg font-medium text-[#13F195]">
                       ${popularTier.price.toFixed(1)}
                     </span>
@@ -226,8 +290,7 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
                     }`}
                   >
                     <div className="text-white text-base font-bold">
-                      {tier?.quantity}{" "}
-                      <span className="text-sm text-gray-400 font-medium">GB</span>
+                      {formatQuantityWithUnit(tier)}
                     </div>
                     <div className="text-[#13F195] text-sm font-semibold">
                       ${tier?.price?.toFixed(1)}
@@ -286,11 +349,11 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
         type="button"
         onClick={() => setIsPaymentModalOpen(true)}
         disabled={
-          !popularTier || fetchPricingPlans || isOrderPaymentLoading || isProcessingGuest || quantity === 0
+          !popularTier || fetchPricingPlans || isOrderPaymentLoading || quantity === 0
         }
         className="w-full py-3 rounded-lg font-semibold text-lg bg-[#7BB9FF1A] text-[#13F195] hover:bg-[#232b3f] transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isProcessingGuest || isOrderPaymentLoading ? "Processing..." : "Buy in 1 Click"}
+        {isOrderPaymentLoading ? "Processing..." : (isProlong ? "Prolong Proxy" : "Buy in 1 Click")}
       </button>
       <PaymentModal
         isOpen={isPaymentModalOpen}
@@ -301,7 +364,14 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
         totalPrice={calculateTotalPrice()}
         loading={isOrderPaymentLoading || placingOrder}
         orderId={orderId}
-        onSuccess={onClose}
+        selectedTier={selectedTier}
+        isProlong={isProlong}
+        onSuccess={async () => {
+          // For prolong flows, the payment endpoint handles the prolong logic internally
+          // No need to call separate prolong API
+          console.log('DEBUG: Payment completed successfully');
+          onClose();
+        }}
         currentPage={currentPage}
         activeTab={activeTab}
       />

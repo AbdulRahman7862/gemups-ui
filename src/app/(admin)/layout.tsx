@@ -11,6 +11,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { resetUserSlice } from "@/store/user/userSlice";
 import { getAuthToken } from "@/utils/authCookies";
 import React, { useEffect } from "react";
+import { GuestUserBanner } from "@/components/common/GuestUserBanner";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { isGuest } = useAuthStatus();
@@ -43,6 +44,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       >
         {/* Header */}
         <AppHeader />
+        {/* Guest User Banner */}
+        <GuestUserBanner />
         {/* Disclaimer */}
         {isGuest && (
           <Disclaimer message="Please add your username, email, and password so you don't lose your data." />

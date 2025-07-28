@@ -10,6 +10,10 @@ import {
   getOrdersByUser,
   placeOrder,
   updateCartItem,
+  getProxyOrderDetails,
+  prolongProxyOrder,
+  checkOrderStatus,
+  guestPayWithWallet,
 } from "./actions";
 
 interface CartState {
@@ -27,6 +31,9 @@ interface CartState {
   isCreatePaymentLoading: boolean;
   isOrderPaymentLoading: boolean;
   orderLoading: boolean;
+  proxyOrderLoading: boolean;
+  prolongingOrder: boolean;
+  checkingOrderStatus: boolean;
   error: string | null;
 }
 
@@ -45,6 +52,9 @@ const initialState: CartState = {
   isCreatePaymentLoading: false,
   isOrderPaymentLoading: false,
   orderLoading: false,
+  proxyOrderLoading: false,
+  prolongingOrder: false,
+  checkingOrderStatus: false,
   error: null,
 };
 
@@ -182,6 +192,68 @@ const bookingSlice = createSlice({
     builder.addCase(createPaymentOrder.rejected, (state) => {
       state.isOrderPaymentLoading = false;
     });
+    // Get Proxy Order Details
+    builder
+      .addCase(getProxyOrderDetails.pending, (state) => {
+        state.proxyOrderLoading = true;
+        state.error = null;
+      })
+      .addCase(getProxyOrderDetails.fulfilled, (state, action) => {
+        state.proxyOrderLoading = false;
+        state.order = action.payload;
+      })
+      .addCase(getProxyOrderDetails.rejected, (state, action) => {
+        state.proxyOrderLoading = false;
+        state.error = (action.payload as any)?.message || "Failed to fetch proxy order details";
+      });
+    // Prolong Proxy Order
+    builder
+      .addCase(prolongProxyOrder.pending, (state) => {
+        state.prolongingOrder = true;
+        state.error = null;
+      })
+      .addCase(prolongProxyOrder.fulfilled, (state, action) => {
+        state.prolongingOrder = false;
+        // Update the order with new data
+        state.order = action.payload;
+      })
+      .addCase(prolongProxyOrder.rejected, (state, action) => {
+        state.prolongingOrder = false;
+        state.error = (action.payload as any)?.message || "Failed to prolong proxy order";
+      });
+    // Check Order Status
+    builder
+      .addCase(checkOrderStatus.pending, (state) => {
+        state.checkingOrderStatus = true;
+        state.error = null;
+      })
+      .addCase(checkOrderStatus.fulfilled, (state, action) => {
+        state.checkingOrderStatus = false;
+        // Update order with status and proxy details
+        if (action.payload.success && action.payload.data) {
+          state.order = action.payload.data;
+        }
+      })
+      .addCase(checkOrderStatus.rejected, (state, action) => {
+        state.checkingOrderStatus = false;
+        state.error = (action.payload as any)?.message || "Failed to check order status";
+      });
+    // Guest Pay with Wallet
+    builder
+      .addCase(guestPayWithWallet.pending, (state) => {
+        state.isOrderPaymentLoading = true;
+        state.error = null;
+      })
+      .addCase(guestPayWithWallet.fulfilled, (state, action) => {
+        state.isOrderPaymentLoading = false;
+        if (action.payload.success) {
+          toast.success(action.payload.message || "Guest wallet payment completed successfully");
+        }
+      })
+      .addCase(guestPayWithWallet.rejected, (state, action) => {
+        state.isOrderPaymentLoading = false;
+        state.error = (action.payload as any)?.message || "Failed to pay with wallet";
+      });
   },
 });
 

@@ -7,6 +7,7 @@ import Providers from "@/store/Providers";
 import { ToastContainer } from "react-toastify";
 import dynamic from "next/dynamic";
 
+
 const inter = Inter({ subsets: ["latin"] });
 
 // Dynamically import AuthInitializer with no SSR
@@ -26,7 +27,9 @@ export default function RootLayout({
           <AuthInitializer>
             <ToastContainer position="top-right" autoClose={3000} />
             <ThemeProvider>
-              <SidebarProvider>{children}</SidebarProvider>
+              <SidebarProvider>
+                {children}
+              </SidebarProvider>
             </ThemeProvider>
           </AuthInitializer>
         </Providers>

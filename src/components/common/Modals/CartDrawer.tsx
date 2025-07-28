@@ -6,6 +6,9 @@ import {
   deleteCartItem,
   getCartByUser,
   updateCartItem,
+  checkOrderStatus,
+  getOrdersByUser,
+  guestPayWithWallet,
 } from "@/store/bookings/actions";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toast } from "react-toastify";
@@ -24,6 +27,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const { user } = useAppSelector((state) => state.user);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
 
   const {
     cartItems,
@@ -32,6 +36,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
     updatingItem,
     placingOrder,
     isOrderPaymentLoading,
+    checkingOrderStatus,
   } = useAppSelector((state) => state.booking);
   const total = cartItems?.reduce((acc, item) => acc + (item.amount || 0), 0) || 0;
 
@@ -99,9 +104,10 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
           ).unwrap();
         } catch (error) {
           toast.error("Failed to update item quantity.");
+        } finally {
+          // Always refresh the cart from backend after update
           dispatch(getCartByUser());
         }
-
         delete debounceTimers.current[id];
       }, DEBOUNCE_DELAY);
     },
@@ -114,10 +120,17 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
     const item = cartItems.find((c) => c.id === id);
     if (!item) return;
 
-    const { newAmount } = calculatePriceAndAmount(item, newQuantity);
+    // Use the stored tier information from when the item was added to cart
+    const pricePerPc = item.price || item.tier?.price || 0;
+    const newAmount = parseFloat((pricePerPc * newQuantity).toFixed(2));
 
+    // Update locally for instant UI feedback
     dispatch(updateCartItemLocally({ id, quantity: newQuantity, amount: newAmount }));
 
+    // Show loader for this item
+    setUpdatingItemId(id);
+
+    // Debounced backend update
     debouncedUpdateCartItem(id, newQuantity, newAmount);
   };
 
@@ -126,7 +139,8 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
     if (!item) return;
 
     if (value === "") {
-      const { newAmount } = calculatePriceAndAmount(item, 1);
+      const pricePerPc = item.price || item.tier?.price || 0;
+      const newAmount = parseFloat((pricePerPc * 1).toFixed(2));
       dispatch(updateCartItemLocally({ id, quantity: 1, amount: newAmount }));
       debouncedUpdateCartItem(id, 1, newAmount);
       return;
@@ -134,7 +148,8 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
 
     const numValue = parseInt(value);
     if (!isNaN(numValue) && numValue >= 1) {
-      const { newAmount } = calculatePriceAndAmount(item, numValue);
+      const pricePerPc = item.price || item.tier?.price || 0;
+      const newAmount = parseFloat((pricePerPc * numValue).toFixed(2));
       dispatch(updateCartItemLocally({ id, quantity: numValue, amount: newAmount }));
       debouncedUpdateCartItem(id, numValue, newAmount);
     }
@@ -145,26 +160,100 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
       return toast.warning("No items in cart to purchase.");
     }
 
+    console.log("DEBUG: Starting payment process for cart items:", cartItems);
+
+    // Clear any old pending order before starting new payment
+    localStorage.removeItem("pendingOrderId");
+
     try {
-      const result = await dispatch(
-        createPaymentOrder({
-          productId: Number(cartItems?.[0]?.Product?.id),
+      // Ensure we create only one order with the correct quantity
+      const cartItem = cartItems[0];
+      
+      // Check if user is guest and use appropriate payment method
+      if (user?.isGuest) {
+        console.log('DEBUG: Guest user cart payment');
+        
+        // For guest cart payment, we need to send cart items in the format the backend expects
+        const cartItemForPayment = {
+          productId: String(cartItem?.Product?.id),
+          quantity: Number(cartItem.quantity),
+          providerId: String(cartItem.providerId),
+          price: cartItem.amount || (cartItem.tier?.price * cartItem.quantity),
+          type: "cart",
+          // Include tier information from cart item
+          userDataAmount: cartItem.tier?.userDataAmount || cartItem.userDataAmount || 1,
+          unit: cartItem.tier?.unit || cartItem.unit || 'GB',
+          tierId: cartItem.tierId || `${cartItem.userDataAmount || 1}-${cartItem.unit || 'GB'}`,
+          isPopular: cartItem.tier?.isPopular || cartItem.isPopular || false,
+          // Additional fields that might be needed
+          shop: "default",
+          un_flow: cartItem.tier?.userDataAmount || cartItem.userDataAmount || 1,
+          un_flow_used: 0,
+          expire: Math.floor(Date.now() / 1000) + (90 * 24 * 60 * 60), // 90 days
+        };
+
+        const guestWalletPayload = {
+          // Include fields at root level for validation
+          productId: String(cartItem?.Product?.id),
+          quantity: Number(cartItem.quantity),
+          providerId: String(cartItem.providerId),
+          type: "cart",
+          // Include cart array for processing
+          cart: [cartItemForPayment]
+        };
+
+        console.log("DEBUG: Guest cart payment payload:", guestWalletPayload);
+        console.log("DEBUG: Cart item being sent:", cartItemForPayment);
+        console.log("DEBUG: Original cart item:", cartItem);
+
+        const result = await dispatch(guestPayWithWallet(guestWalletPayload)).unwrap();
+        
+        if (result.success) {
+          console.log('DEBUG: Guest cart payment successful:', result);
+          toast.success("Cart payment completed successfully!");
+          dispatch(getCartByUser());
+          onClose();
+        } else {
+          toast.error(result.error || "Guest cart payment failed.");
+        }
+      } else {
+        // Regular user cart payment (existing logic)
+        console.log('DEBUG: Regular user cart payment');
+        
+        const paymentPayload = {
+          productId: Number(cartItem?.Product?.id),
           currency: "USD",
           isOrder: true,
-          quantity: cartItems?.[0].quantity,
+          quantity: cartItem.quantity, // This should be the quantity within one order
           type: "cart",
-          providerId: cartItems?.[0].providerId,
-        })
-      ).unwrap();
-      if (result?.data?.result?.url) {
-        window.location.href = result.data.result.url;
-      } else {
-        throw new Error("Payment URL not found in response");
-      }
+          providerId: cartItem.providerId,
+          // Add additional fields to ensure single order creation
+          createSingleOrder: true,
+          orderCount: 1,
+        };
 
-      dispatch(getCartByUser());
-      onClose();
+        console.log("DEBUG: Regular cart payment payload:", paymentPayload);
+
+        const result = await dispatch(
+          createPaymentOrder(paymentPayload)
+        ).unwrap();
+        
+        console.log("DEBUG: Payment order created successfully:", result);
+        
+        if (result?.data?.result?.url) {
+          // Store order_id for status checking when user returns
+          localStorage.setItem("pendingOrderId", result.data.result.order_id);
+          console.log("DEBUG: Stored order_id and redirecting to:", result.data.result.url);
+          window.location.href = result.data.result.url;
+        } else {
+          throw new Error("Payment URL not found in response");
+        }
+
+        dispatch(getCartByUser());
+        onClose();
+      }
     } catch (error: any) {
+      console.error("DEBUG: Payment failed:", error);
       toast.error(error?.message || "Order failed. Please try again.");
     }
   };
@@ -176,6 +265,52 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
       fetchCartItemsDebounced();
     }
   }, [isOpen, dispatch, fetchCartItemsDebounced]);
+
+  // Check for pending orders when component mounts
+  useEffect(() => {
+    const checkPendingOrder = async () => {
+      const pendingOrderId = localStorage.getItem("pendingOrderId");
+      if (!pendingOrderId) return;
+      
+      // Validate order_id format - should not contain invalid characters or be too long
+      if (pendingOrderId.includes('<!DOCTYPE') || 
+          pendingOrderId.includes('<html>') || 
+          pendingOrderId.includes('Error') ||
+          pendingOrderId.includes('Cannot GET') ||
+          pendingOrderId.length > 100 ||
+          pendingOrderId.includes('\n')) {
+        localStorage.removeItem("pendingOrderId");
+        return;
+      }
+      
+      try {
+        const result = await dispatch(checkOrderStatus(pendingOrderId)).unwrap();
+        if (result.success && result.data.status === 'completed') {
+          // Order completed successfully
+          localStorage.removeItem("pendingOrderId");
+          toast.success("Payment completed! Your proxy has been created.");
+          // Refresh orders to show the new proxy
+          dispatch(getOrdersByUser({ page: 1, limit: 10, type: 'all' }));
+        } else if (result.success && result.data.status === 'failed') {
+          // Order failed
+          localStorage.removeItem("pendingOrderId");
+          toast.error("Payment failed. Please try again.");
+        } else if (result.success && result.data.status === 'pending') {
+          // Order is still pending - this is normal, don't show any message
+          console.log("Order is still pending:", pendingOrderId);
+        } else {
+          // Unknown status or error - clear the old order_id
+          localStorage.removeItem("pendingOrderId");
+          console.log("Clearing old order_id due to unknown status:", result);
+        }
+      } catch (error: any) {
+        // Silently clear localStorage for any error - no console logs
+        localStorage.removeItem("pendingOrderId");
+      }
+    };
+    
+    checkPendingOrder();
+  }, [dispatch]);
 
   useEffect(() => {
     return () => {
@@ -201,6 +336,13 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
     };
   }, [isOpen, onClose]);
 
+  // Clear loader when backend update is done
+  useEffect(() => {
+    if (!updatingItem) {
+      setUpdatingItemId(null);
+    }
+  }, [updatingItem]);
+
   return (
     <>
       <div
@@ -224,19 +366,32 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
             </div>
           ) : cartItems?.length ? (
             cartItems.map((item) => {
+              const key = item?.id || item?._id || item?.productId;
+              const imageSrc = item?.Product?.image;
+              const imageAlt = item?.Product?.name || 'Cart item';
               return (
                 <div
-                  key={item?.id}
+                  key={key}
                   className="bg-[#0E1118] p-4 rounded-lg mb-4 flex flex-col gap-3"
                 >
                   <div className="flex items-start gap-4">
+                    {imageSrc && imageSrc !== "" ? (
+                      <Image
+                        src={imageSrc}
+                        alt={imageAlt}
+                        width={40}
+                        height={40}
+                        className="rounded-full object-cover"
+                      />
+                    ) : (
                     <Image
-                      src={item?.Product?.image}
-                      alt={item?.Product?.name}
+                        src="/images/logo/icon.png"
+                        alt={imageAlt}
                       width={40}
                       height={40}
                       className="rounded-full object-cover"
                     />
+                    )}
                     <div className="flex-1">
                       <div className="mb-2">
                         <span className="inline-block bg-[#13F1951A] px-2 py-1.5 rounded-lg text-xs">
@@ -246,9 +401,22 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                           <span className="text-[#7A8895]">{item?.Product?.name}</span>
                         </span>
                       </div>
-                      <p className="text-white text-sm leading-snug mb-3">
+                      <p className="text-white text-sm leading-snug mb-2">
                         {item?.Product?.features?.join(" | ")}
                       </p>
+                      {/* Display tier information */}
+                      {item?.userDataAmount && item?.unit && (
+                        <div className="mb-2">
+                          <span className="inline-block bg-[#7BB9FF1A] px-2 py-1 rounded text-xs">
+                            <span className="font-bold text-[#7BB9FF] mr-1">
+                              {item.userDataAmount} {item.unit}
+                            </span>
+                            <span className="text-[#7A8895]">
+                              {item.isPopular ? " (Popular)" : ""}
+                            </span>
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <button
@@ -278,9 +446,20 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                             +
                           </button>
                         </div>
-                        <p className="text-[16px] font-semibold text-[#13F195] whitespace-nowrap">
-                          ${item?.amount?.toLocaleString()}
-                        </p>
+                        <div className="text-right">
+                          <p className="text-[16px] font-semibold text-[#13F195] whitespace-nowrap">
+                            {updatingItemId === item.id ? (
+                              <Loader className="h-4 w-4 animate-spin text-[#13F195]" />
+                            ) : (
+                              `$${item?.amount?.toLocaleString()}`
+                            )}
+                          </p>
+                          {item?.tier?.price && (
+                            <p className="text-xs text-[#7A8895] whitespace-nowrap">
+                              ${item.tier.price} per {item?.unit || 'unit'}
+                            </p>
+                          )}
+                        </div>
                         <button
                           className="text-gray-400 hover:text-red-400 w-7 h-7 flex items-center justify-center transition"
                           onClick={() => handleDeleteItem(item?.id)}
@@ -315,9 +494,12 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
           </div>
           <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-4">
             <div className="text-white font-semibold text-[16px]">
-              For Payment:{" "}
-              <div className="text-[#13F195] text-2xl font-semibold">
+              For Payment: {" "}
+              <div className="text-[#13F195] text-2xl font-semibold flex items-center gap-2">
                 ${total?.toFixed(2)}
+                {(updatingItemId || updatingItem) && (
+                  <Loader className="h-5 w-5 animate-spin text-[#13F195]" />
+                )}
               </div>
             </div>
             <button
@@ -342,10 +524,17 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
         onClose={() => setIsPaymentModalOpen(false)}
         productId={cartItems?.[0]?.Product?.id || ""}
         providerId={cartItems?.[0]?.providerId || ""}
-        quantity={cartItems?.reduce((acc, item) => acc + (item.quantity || 0), 0)}
-        totalPrice={total.toFixed(2)}
+        quantity={cartItems?.[0]?.quantity || 1}
+        totalPrice={cartItems?.[0]?.price ? (cartItems[0].price * cartItems[0].quantity).toFixed(2) : total.toFixed(2)}
         loading={isOrderPaymentLoading || placingOrder}
         type="cart"
+        selectedTier={cartItems?.[0]?.tier || {
+          userDataAmount: cartItems?.[0]?.userDataAmount,
+          unit: cartItems?.[0]?.unit,
+          price: cartItems?.[0]?.price,
+          isPopular: cartItems?.[0]?.isPopular,
+          quantity: cartItems?.[0]?.quantity
+        }}
       />
     </>
   );

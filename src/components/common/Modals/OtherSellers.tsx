@@ -61,18 +61,29 @@ export default function OtherSellers({
         ) : otherSellers.length === 0 ? (
           <p className="text-[#7A8895]">No other sellers</p>
         ) : (
-          otherSellers.map((seller) => (
+          otherSellers.map((seller, idx) => (
             <div
-              key={seller?.id}
+              key={seller?.id ?? idx}
               className="flex items-center space-x-4 bg-[#0F141B] p-3 rounded-lg"
             >
               <div className="w-12 h-12 relative">
+                {(seller?.image && seller.image !== "") ? (
                 <Image
-                  src={seller?.image}
+                    src={seller.image}
                   alt={seller?.name}
                   fill
                   className="object-contain rounded"
+                    sizes="48px"
+                  />
+                ) : (
+                  <Image
+                    src="/images/logo/icon.png" // fallback image
+                    alt="No image"
+                    fill
+                    sizes="48px"
+                    className="object-contain rounded"
                 />
+                )}
               </div>
               <div>
                 <p className="text-lg font-medium">{seller?.name}</p>

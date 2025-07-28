@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   images: {
     domains: [
       'techedge.pro',
+      'img.freepik.com', // <-- added for Next.js image loader
       // add other allowed domains here if needed
     ],
     remotePatterns: [
@@ -23,6 +24,7 @@ const nextConfig: NextConfig = {
     });
     return config;
   },
+  // Removed redirects configuration - using middleware instead
 };
 
 export default nextConfig;

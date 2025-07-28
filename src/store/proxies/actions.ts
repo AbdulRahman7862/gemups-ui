@@ -10,8 +10,12 @@ export const getProxies = createAsyncThunk<any, void>(
       const response = await axiosInstance.get("/api/proxies/");
       return response.data;
     } catch (error: any) {
-      console.error(error.response?.data?.message || "Failed to fetch proxies");
-      return thunkAPI.rejectWithValue(error.response?.data);
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to fetch proxies";
+      console.error(message);
+      return thunkAPI.rejectWithValue(error?.response?.data || { message });
     }
   }
 );
@@ -21,7 +25,7 @@ export const getSingleProxy = createAsyncThunk<any, any>(
   "proxy/getProxyById",
   async (id, thunkAPI) => {
     try {
-      const response = await axiosInstance.get(`/product/${id}`);
+      const response = await axiosInstance.get(`/api/proxies/${id}`);
       return response.data;
     } catch (error: any) {
       console.error(error.response?.data?.message || "Failed to fetch proxy");
@@ -30,12 +34,14 @@ export const getSingleProxy = createAsyncThunk<any, any>(
   }
 );
 
+// Get Other Sellers (products for a provider)
 export const getOtherSellers = createAsyncThunk<any, any>(
   "proxy/getOtherSellers",
   async (id, thunkAPI) => {
     try {
+      // This endpoint returns all products for the given provider ID, as an array
       const response = await axiosInstance.get(`/provider/${id}`);
-      return response.data;
+      return response.data; // response.data.data is an array of products for the provider
     } catch (error: any) {
       console.error(error.response?.data?.message || "Failed to fetch proxies");
       return thunkAPI.rejectWithValue(error.response?.data);
@@ -49,6 +55,7 @@ export const getProxyPricing = createAsyncThunk<
   { proxyId: any; providerId: string }
 >("proxy/getProxyPricing", async ({ proxyId, providerId }, thunkAPI) => {
   try {
+    // console.log("Provider ID", providerId, "Proxy ID", proxyId );
     const response = await axiosInstance.get(`/api/proxies/pricing/${proxyId}/${providerId}`);
     return response.data;
   } catch (error: any) {

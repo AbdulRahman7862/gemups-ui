@@ -10,6 +10,10 @@ import {
   singupUser,
   updateUserPassword,
   updateUserProfile,
+  createGuestUserAction,
+  loginGuestUserAction,
+  initializeGuestUserAction,
+  convertGuestToRegularUserAction,
 } from "./actions";
 import { UserState } from "./interface";
 import { setAuthToken, clearUserUID, clearAllAuthCookies } from "@/utils/authCookies";
@@ -39,6 +43,9 @@ export const userSlice = createSlice({
     resetUserSlice: () => {
       clearAllAuthCookies();
       return initialState;
+    },
+    updateWalletBalance: (state, action: PayloadAction<number>) => {
+      state.walletBalance = action.payload;
     },
   },
 
@@ -185,14 +192,88 @@ export const userSlice = createSlice({
       })
       .addCase(deleteAssetByType.rejected, (state) => {
         state.deletingImage = false;
+      })
+
+      // Guest User Actions
+      .addCase(createGuestUserAction.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(createGuestUserAction.fulfilled, (state, action: PayloadAction<any>) => {
+        if (action.payload.success) {
+          state.user = action.payload.data.user;
+          setAuthToken(action.payload.data.token);
+          toast.success(action?.payload?.message || "Guest user created successfully");
+        } else {
+          toast.error(action?.payload?.message || "Failed to create guest user");
+        }
+        state.isLoading = false;
+      })
+      .addCase(createGuestUserAction.rejected, (state, action: PayloadAction<any>) => {
+        toast.error(action?.payload?.message || "Failed to create guest user");
+        state.isLoading = false;
+      })
+
+      .addCase(loginGuestUserAction.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(loginGuestUserAction.fulfilled, (state, action: PayloadAction<any>) => {
+        if (action.payload.success) {
+          state.user = action.payload.data.user;
+          setAuthToken(action.payload.data.token);
+          toast.success(action?.payload?.message || "Guest user logged in successfully");
+        } else {
+          toast.error(action?.payload?.message || "Failed to login guest user");
+        }
+        state.isLoading = false;
+      })
+      .addCase(loginGuestUserAction.rejected, (state, action: PayloadAction<any>) => {
+        toast.error(action?.payload?.message || "Failed to login guest user");
+        state.isLoading = false;
+      })
+
+      .addCase(initializeGuestUserAction.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(initializeGuestUserAction.fulfilled, (state, action: PayloadAction<any>) => {
+        if (action.payload.success) {
+          state.user = action.payload.data.user;
+          setAuthToken(action.payload.data.token);
+          toast.success(action?.payload?.message || "Guest user initialized successfully");
+        } else {
+          toast.error(action?.payload?.message || "Failed to initialize guest user");
+        }
+        state.isLoading = false;
+      })
+      .addCase(initializeGuestUserAction.rejected, (state, action: PayloadAction<any>) => {
+        toast.error(action?.payload?.message || "Failed to initialize guest user");
+        state.isLoading = false;
+      })
+
+      .addCase(convertGuestToRegularUserAction.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(convertGuestToRegularUserAction.fulfilled, (state, action: PayloadAction<any>) => {
+        if (action.payload.success) {
+          state.user = action.payload.data.user;
+          setAuthToken(action.payload.data.token);
+          toast.success(action?.payload?.message || "Successfully converted to regular user");
+        } else {
+          toast.error(action?.payload?.message || "Failed to convert to regular user");
+        }
+        state.isLoading = false;
+      })
+      .addCase(convertGuestToRegularUserAction.rejected, (state, action: PayloadAction<any>) => {
+        toast.error(action?.payload?.message || "Failed to convert to regular user");
+        state.isLoading = false;
       });
+
     // Get User Balance
     builder.addCase(getUserBalance.pending, (state) => {
       state.isFetchingBalance = true;
     });
     builder.addCase(getUserBalance.fulfilled, (state, action: PayloadAction<any>) => {
       if (action.payload.success) {
-        state.walletBalance = action.payload?.walletBalance || 0;
+        state.walletBalance = action.payload?.balance || 0;
       } else {
         toast.error(action?.payload?.message || "Failed to fetch user balance");
       }
@@ -205,7 +286,7 @@ export const userSlice = createSlice({
   },
 });
 
-export const { logoutUser, removeExistingUser, resetUserSlice } = userSlice.actions;
+export const { logoutUser, removeExistingUser, resetUserSlice, updateWalletBalance } = userSlice.actions;
 
 // Optional global slice reset
 export const resetAllSlices = () => {

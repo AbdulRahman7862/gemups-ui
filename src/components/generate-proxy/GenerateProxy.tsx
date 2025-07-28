@@ -6,22 +6,41 @@ import Tabs from "../common/Tabs";
 import GeneratedProxies from "./GeneratedProxies";
 import { useParams } from "next/navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { getOrderById } from "@/store/bookings/actions";
+import { getProxyOrderDetails, getOrdersByUser } from "@/store/bookings/actions";
 import TrafficUsage from "./TrafficUsed";
 import { toast } from "react-toastify";
+import PaymentBuyClickModal from "../common/Modals/PaymentBuyClickModal";
 
 export default function GenerateProxy() {
   const orderId = useParams().id;
   const dispatch = useAppDispatch();
-  const { order, orderLoading } = useAppSelector((state) => state.booking);
+  const { order, proxyOrderLoading, orders } = useAppSelector((state) => state.booking);
+  // 1. Enable all proxy type tabs and make them dynamic
+  const proxyTypes = [
+    { value: "Residential" },
+    { value: "ISP" },
+    { value: "Datacenter" },
+  ];
   const [activeTab, setActiveTab] = useState("Residential");
-  const [availableProxy, setAvailableProxy] = useState("Lola");
-  const [protocol, setProtocol] = useState("http(s)");
-  const [count, setCount] = useState(1);
+  // 2. Fetch and display real active orders
+  const { orders: allOrders } = useAppSelector((state) => state.booking);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+
+  // 3. Default country to Germany
+  const [selectedCountry, setSelectedCountry] = useState("Germany");
+  const [countryCode, setCountryCode] = useState("DE");
+
+  // 4. Set count default to 100
+  const [count, setCount] = useState(100);
   const [format, setFormat] = useState("ip:port:login:password");
   const [location, setLocation] = useState("Random");
-  const [selectedCountry, setSelectedCountry] = useState("");
-  const [countryCode, setCountryCode] = useState("");
+  const [selectedState, setSelectedState] = useState("");
+  const [selectedCity, setSelectedCity] = useState("");
+  const [states, setStates] = useState<string[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
+  const [port, setPort] = useState("");
+  const [isProlongModalOpen, setIsProlongModalOpen] = useState(false);
+  const [originalOrder, setOriginalOrder] = useState<any>(null);
   const [sessionType, setSessionType] = useState("Static");
   const [ttl, setTtl] = useState(30);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
@@ -30,11 +49,11 @@ export default function GenerateProxy() {
   const [rotation, setRotation] = useState("Rotating");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedProxies, setGeneratedProxies] = useState<string[]>([]);
-  const [selectedState, setSelectedState] = useState("");
-  const [selectedCity, setSelectedCity] = useState("");
-  const [states, setStates] = useState<string[]>([]);
-  const [cities, setCities] = useState<string[]>([]);
-  const [port, setPort] = useState("");
+  // 1. Add back protocol state
+  const [protocol, setProtocol] = useState("http(s)");
+  // Add loading states for location data
+  const [isLoadingStates, setIsLoadingStates] = useState(false);
+  const [isLoadingCities, setIsLoadingCities] = useState(false);
 
   const tabs = [
     { value: "Residential" },
@@ -42,52 +61,50 @@ export default function GenerateProxy() {
     { value: "ISP", comingSoon: true, disabled: true },
   ];
 
-  const availableProxies = ["Lola", "Bob"];
+  // Replace availableProxies with real orders
+  const availableProxies = orders?.filter(o => o.type === activeTab.toLowerCase()) || [];
   const protocols = ["http(s)", "socks5"];
   const rotations = ["Rotating", "Sticky"];
   const formats = ["ip:port:login:password", "login:password@ip:port"];
   const locations = ["Random", "Country"];
   const sessionTypes = ["Dynamic", "Static"];
 
-  // Generate random proxy data
+  // 5. Update generateRandomProxy to use the full required format
   const generateRandomProxy = useCallback(
-    (protocol?: string, format?: string) => {
-      const ip = `${Math.floor(Math.random() * 255)}.${Math.floor(
+    (protocol?: string, format?: string, sessionIdOverride?: string) => {
+      const ip = selectedOrder?.host || `${Math.floor(Math.random() * 255)}.${Math.floor(
         Math.random() * 255
       )}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
-
-      const username = name || `user_${Math.random().toString(36).substring(2, 8)}`;
-      const pass = password || `pass_${Math.random().toString(36).substring(2, 8)}`;
+      const port = selectedOrder?.port || "10000";
+      const username = name || selectedOrder?.username || `user_${Math.random().toString(36).substring(2, 8)}`;
+      const pass = password || selectedOrder?.passwd || `pass_${Math.random().toString(36).substring(2, 8)}`;
       const protocolPrefix = protocol == "http(s)" ? "http" : "socks5";
-      const sessionId = Math.random().toString(36).substring(2, 10);
-      const zone = activeTab === "Residential" ? "resi" : "";
-
+      const sessionId = sessionType === "Static"
+        ? sessionIdOverride || ((window as any)._staticSessionId || ((window as any)._staticSessionId = Math.random().toString(36).substring(2, 10)))
+        : Math.random().toString(36).substring(2, 10);
+      const zone = activeTab === "Residential" ? "resi" : activeTab.toLowerCase();
       const sanitizedState = selectedState?.replace(/\s+/g, "-") || "";
       const sanitizedCity = selectedCity?.replace(/\s+/g, "-") || "";
-
-      const parts = [
+      const regionSuffix = [
         `zone-${zone}`,
         selectedCountry && `region-${countryCode}`,
         selectedState && `st-${sanitizedState}`,
         selectedCity && `city-${sanitizedCity}`,
         `session-${sessionId}`,
         `sessTime-${ttl}`,
-      ].filter(Boolean);
-
-      const regionSuffix = parts.join("-");
-
+      ].filter(Boolean).join("-");
       if (format == "ip:port:login:password") {
         return `${protocolPrefix}://${ip}:${port}:${username}-${regionSuffix}:${pass}`;
       } else {
         return `${protocolPrefix}://${username}-${regionSuffix}:${pass}@${ip}:${port}`;
       }
     },
-    [name, password, ttl, activeTab, countryCode, selectedState, selectedCity, port]
+    [name, password, ttl, activeTab, countryCode, selectedState, selectedCity, port, sessionType, selectedOrder]
   );
 
+  // 6. Ensure session type and TTL are respected in handleGenerateProxies
   const handleGenerateProxies = async (selectedProtocol?: string, format?: string) => {
     const activeProtocol = selectedProtocol || protocol;
-
     if (count <= 0) {
       alert("Please enter a valid count greater than 0");
       return;
@@ -104,13 +121,16 @@ export default function GenerateProxy() {
       alert("Please enter a password");
       return;
     }
-
     setIsGenerating(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       const newProxies = [];
+      let staticSessionId = undefined;
+      if (sessionType === "Static") {
+        staticSessionId = Math.random().toString(36).substring(2, 10);
+      }
       for (let i = 0; i < count; i++) {
-        newProxies.push(generateRandomProxy(activeProtocol, format));
+        newProxies.push(generateRandomProxy(activeProtocol, format, staticSessionId));
       }
       setGeneratedProxies(newProxies);
       toast.success("Proxies generated successfully!");
@@ -132,52 +152,148 @@ export default function GenerateProxy() {
   // Fetch states when country changes
   useEffect(() => {
     if (selectedCountry) {
+      setIsLoadingStates(true);
+      // Add timeout and better error handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       fetch(
-        `https://countriesnow.space/api/v0.1/countries/states/q?country=${selectedCountry}`
+        `https://countriesnow.space/api/v0.1/countries/states/q?country=${selectedCountry}`,
+        {
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       )
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          return res.json();
+        })
         .then((data) => {
-          setStates(data?.data?.states.map((s: any) => s.name));
-          setSelectedState(data?.data?.states?.[0]?.name);
+          if (data?.data?.states) {
+            setStates(data.data.states.map((s: any) => s.name));
+            setSelectedState(data.data.states?.[0]?.name);
+          } else {
+            // Fallback: set empty states if API doesn't return expected data
+            setStates([]);
+            setSelectedState("");
+          }
           setCities([]);
           setSelectedCity("");
         })
-        .catch((err) => console.error(err));
+        .catch((err) => {
+          if (err.name !== 'AbortError') {
+            console.warn('Failed to fetch states from external API:', err);
+            // Fallback: set empty states on error
+            setStates([]);
+            setSelectedState("");
+            setCities([]);
+            setSelectedCity("");
+          }
+        })
+        .finally(() => {
+          clearTimeout(timeoutId);
+          setIsLoadingStates(false);
+        });
+
+      // Cleanup function to cancel request if component unmounts or dependency changes
+      return () => {
+        controller.abort();
+        clearTimeout(timeoutId);
+      };
     }
   }, [selectedCountry]);
 
   // Fetch cities when state changes
   useEffect(() => {
     if (selectedCountry && selectedState) {
+      setIsLoadingCities(true);
+      // Add timeout and better error handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       fetch("https://countriesnow.space/api/v0.1/countries/state/cities", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ country: selectedCountry, state: selectedState }),
+        signal: controller.signal,
       })
-        .then((res) => res.json())
-        .then((data) => {
-          setCities(data.data);
-          setSelectedCity(data?.data?.[0]);
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          return res.json();
         })
-        .catch((err) => console.error(err));
+        .then((data) => {
+          if (data?.data && Array.isArray(data.data)) {
+            setCities(data.data);
+            setSelectedCity(data.data?.[0]);
+          } else {
+            // Fallback: set empty cities if API doesn't return expected data
+            setCities([]);
+            setSelectedCity("");
+          }
+        })
+        .catch((err) => {
+          if (err.name !== 'AbortError') {
+            console.warn('Failed to fetch cities from external API:', err);
+            // Fallback: set empty cities on error
+            setCities([]);
+            setSelectedCity("");
+          }
+        })
+        .finally(() => {
+          clearTimeout(timeoutId);
+          setIsLoadingCities(false);
+        });
+
+      // Cleanup function to cancel request if component unmounts or dependency changes
+      return () => {
+        controller.abort();
+        clearTimeout(timeoutId);
+      };
     }
   }, [selectedCountry, selectedState]);
 
   useEffect(() => {
     if (!orderId) return;
     const id = Array.isArray(orderId) ? orderId[0] : orderId;
-    dispatch(getOrderById(id));
+    dispatch(getProxyOrderDetails(id));
+    
+    // Also fetch the original order from purchases to get productId and providerId
+    dispatch(getOrdersByUser({ page: 1, limit: 100, type: 'all' }));
   }, [orderId, dispatch]);
 
   useEffect(() => {
     if (order) {
       setPassword(order?.passwd);
-      setCount(order?.quantity);
+      // Keep the default count of 100, don't override with order quantity
+      // setCount(order?.quantity || 1);
       setProtocol(order?.proto);
       setName(order?.username);
       setPort(order?.port);
+      
+      // Set the selectedOrder to the API response data which contains the real proxy details
+      // This ensures that generateRandomProxy uses the correct host and port from the API
+      setSelectedOrder(order);
     }
   }, [order]);
+
+  // Find the original order from purchases to get productId and providerId
+  useEffect(() => {
+    if (orders && orders.length > 0 && orderId) {
+      const id = Array.isArray(orderId) ? orderId[0] : orderId;
+      const foundOrder = orders.find((order: any) => order.id === id);
+      if (foundOrder) {
+        setOriginalOrder(foundOrder);
+      }
+    }
+  }, [orders, orderId]);
 
   const Tooltip = ({ children, text }: { children: React.ReactNode; text: string }) => (
     <div className="relative inline-flex group">
@@ -198,7 +314,7 @@ export default function GenerateProxy() {
       )}
       <div className="container-fluid mx-auto py-2 min-h-screen text-white">
         <Tabs tabs={tabs} defaultTab={activeTab} onTabChange={(tab) => setActiveTab(tab)} />
-        {orderLoading ? (
+        {proxyOrderLoading ? (
           <div className="flex justify-center items-center h-screen">
             <Loader className="animate-spin text-[#13F195]" />
           </div>
@@ -218,15 +334,15 @@ export default function GenerateProxy() {
                   <div className="flex space-x-2">
                     {availableProxies.map((proxy) => (
                       <button
-                        key={proxy}
-                        onClick={() => setAvailableProxy(proxy)}
+                        key={proxy.id}
+                        onClick={() => setSelectedOrder(proxy)}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                          availableProxy === proxy
+                          selectedOrder?.id === proxy.id
                             ? "bg-[#13F1951A] text-[#13F195]"
                             : "bg-[#0f1721] text-[#7A8895]"
                         }`}
                       >
-                        {proxy}
+                        {proxy.providerName} - {proxy.orderNumber}
                       </button>
                     ))}
                   </div>
@@ -428,10 +544,12 @@ export default function GenerateProxy() {
                               <select
                                 value={selectedState}
                                 onChange={(e) => setSelectedState(e.target.value)}
-                                disabled={!states?.length}
-                                className="w-full px-3 py-2 text-white rounded-lg bg-[#0f1721] focus:outline-none appearance-none"
+                                disabled={!states?.length || isLoadingStates}
+                                className="w-full px-3 py-2 text-white rounded-lg bg-[#0f1721] focus:outline-none appearance-none disabled:opacity-50"
                               >
-                                <option value="">Select State</option>
+                                <option value="">
+                                  {isLoadingStates ? "Loading states..." : "Select State"}
+                                </option>
                                 {states?.map((state) => (
                                   <option key={state} value={state}>
                                     {state}
@@ -439,15 +557,22 @@ export default function GenerateProxy() {
                                 ))}
                               </select>
                               <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                              {isLoadingStates && (
+                                <div className="absolute right-8 top-1/2 transform -translate-y-1/2">
+                                  <Loader className="animate-spin h-4 w-4 text-[#13F195]" />
+                                </div>
+                              )}
                             </div>
                             <div className="relative w-full">
                               <select
                                 value={selectedCity}
                                 onChange={(e) => setSelectedCity(e.target.value)}
-                                disabled={!cities?.length}
-                                className="w-full px-3 py-2 text-white rounded-lg bg-[#0f1721] focus:outline-none appearance-none"
+                                disabled={!cities?.length || isLoadingCities}
+                                className="w-full px-3 py-2 text-white rounded-lg bg-[#0f1721] focus:outline-none appearance-none disabled:opacity-50"
                               >
-                                <option value="">Select City</option>
+                                <option value="">
+                                  {isLoadingCities ? "Loading cities..." : "Select City"}
+                                </option>
                                 {cities?.map((city) => (
                                   <option key={city} value={city}>
                                     {city}
@@ -455,7 +580,28 @@ export default function GenerateProxy() {
                                 ))}
                               </select>
                               <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                              {isLoadingCities && (
+                                <div className="absolute right-8 top-1/2 transform -translate-y-1/2">
+                                  <Loader className="animate-spin h-4 w-4 text-[#13F195]" />
+                                </div>
+                              )}
                             </div>
+                          </div>
+                        </div>
+                      )}
+                      {/* Fallback message when location APIs fail */}
+                      {location === "Country" && selectedCountry && !isLoadingStates && !states?.length && (
+                        <div className="w-full mt-2">
+                          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+                            <p className="text-yellow-400 text-sm">
+                              Location data temporarily unavailable. You can continue with proxy generation using random locations.
+                            </p>
+                            <button
+                              onClick={() => setLocation("Random")}
+                              className="mt-2 text-yellow-400 hover:text-yellow-300 text-sm underline"
+                            >
+                              Switch to Random location
+                            </button>
                           </div>
                         </div>
                       )}
@@ -505,7 +651,7 @@ export default function GenerateProxy() {
                             onChange={(e) => setTtl(Number(e.target.value))}
                             className="w-full px-3 py-2 text-white rounded-lg bg-[#0f1721] focus:outline-none appearance-none"
                           >
-                            {(availableProxy === "Lola" ? TTL : TTL2).map((option) => (
+                            {(selectedOrder?.providerName === "Lola" ? TTL : TTL2).map((option) => (
                               <option key={option.value} value={option.value}>
                                 {option.label}
                               </option>
@@ -562,7 +708,11 @@ export default function GenerateProxy() {
             </div>
             {/* Right Column - Traffic Monitor */}
             <div className="lg:col-span-1">
-              <TrafficUsage used={order?.un_flow_used} total={order?.un_flow} />
+              <TrafficUsage 
+                used={order} 
+                total={order?.un_flow} 
+                onProlongClick={() => setIsProlongModalOpen(true)}
+              />
             </div>
           </div>
         )}
@@ -572,6 +722,25 @@ export default function GenerateProxy() {
           <GeneratedProxies
             generatedProxies={generatedProxies.length}
             sampleProxies={generatedProxies}
+          />
+        )}
+        
+        {/* Prolong Modal */}
+        {isProlongModalOpen && order && originalOrder && (
+          <PaymentBuyClickModal
+            isOpen={isProlongModalOpen}
+            onClose={() => setIsProlongModalOpen(false)}
+            providerId={originalOrder.providerId}
+            productId={originalOrder.productId}
+            orderId={originalOrder.id}
+            currentPage={1}
+            activeTab="proxy"
+            isProlong={true}
+            proxyDetails={order ? {
+              username: order.username,
+              expire: order.expire,
+              order_flow: order.order_flow
+            } : null}
           />
         )}
       </div>

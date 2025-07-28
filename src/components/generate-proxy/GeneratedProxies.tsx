@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Copy } from "lucide-react";
+import { Copy, Download } from "lucide-react";
 
 interface GeneratedProxiesProps {
   generatedProxies: number;
@@ -8,11 +8,28 @@ interface GeneratedProxiesProps {
 
 const GeneratedProxies = ({ generatedProxies, sampleProxies }: GeneratedProxiesProps) => {
   const [copied, setCopied] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(sampleProxies.join("\n"));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownload = () => {
+    const content = sampleProxies.join("\n");
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "generated-proxies.txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    setDownloaded(true);
+    setTimeout(() => setDownloaded(false), 2000);
   };
 
   return (
@@ -28,6 +45,13 @@ const GeneratedProxies = ({ generatedProxies, sampleProxies }: GeneratedProxiesP
           >
             <Copy size={16} />
             {copied ? "Copied!" : "Copy All"}
+          </button>
+          <button
+            onClick={handleDownload}
+            className="flex items-center gap-2 px-3 py-1.5 bg-[#13f195] hover:opacity-90 rounded-lg font-medium transition-colors text-sm text-black"
+          >
+            <Download size={16} />
+            {downloaded ? "Downloaded!" : "Download"}
           </button>
         </div>
       </div>
