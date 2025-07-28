@@ -48,7 +48,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <GuestUserBanner />
         {/* Disclaimer */}
         {isGuest && (
-          <Disclaimer message="Please add your username, email, and password so you don't lose your data." />
+          <Disclaimer message="Please add your username, email, and password so you don&apos;t lose your data." />
         )}
         {/* Page Content */}
         <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">{children}</div>

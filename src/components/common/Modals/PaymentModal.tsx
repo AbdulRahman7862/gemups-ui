@@ -8,7 +8,7 @@ import { Loader } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { PROXY_EXPIRE_DAYS, PROXY_HOST } from "@/helpers/const";
+
 
 
 interface PaymentModalProps {

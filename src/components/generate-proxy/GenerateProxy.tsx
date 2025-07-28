@@ -15,15 +15,7 @@ export default function GenerateProxy() {
   const orderId = useParams().id;
   const dispatch = useAppDispatch();
   const { order, proxyOrderLoading, orders } = useAppSelector((state) => state.booking);
-  // 1. Enable all proxy type tabs and make them dynamic
-  const proxyTypes = [
-    { value: "Residential" },
-    { value: "ISP" },
-    { value: "Datacenter" },
-  ];
   const [activeTab, setActiveTab] = useState("Residential");
-  // 2. Fetch and display real active orders
-  const { orders: allOrders } = useAppSelector((state) => state.booking);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
   // 3. Default country to Germany

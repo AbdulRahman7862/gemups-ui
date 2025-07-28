@@ -26,7 +26,7 @@ export const GuestUserBanner: React.FC = () => {
             <div>
               <h3 className="font-semibold text-sm">Guest Mode</h3>
               <p className="text-xs opacity-90">
-                You're using the app as a guest. Convert to a regular account to save your data permanently. You only need to provide email and password.
+                You&apos;re using the app as a guest. Convert to a regular account to save your data permanently. You only need to provide email and password.
               </p>
             </div>
           </div>

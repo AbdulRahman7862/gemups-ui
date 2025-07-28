@@ -5,18 +5,15 @@ import shield from "../../../../../../../public/images/cards/proxy.png";
 import Image from "next/image";
 import { Check, ChevronRight, ClipboardList, Loader } from "lucide-react";
 import OtherSellers from "@/components/common/Modals/OtherSellers";
-import { addToCart, getCartByUser, updateCartItem } from "@/store/bookings/actions";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { toast } from "react-toastify";
 import { useParams } from "next/navigation";
 import {
   getOtherSellers,
   getProxyPricing,
   getSingleProxy,
 } from "@/store/proxies/actions";
-import { addUser } from "@/store/user/actions";
-import { getAuthToken, getUserUID, setUserUID } from "@/utils/authCookies";
-import { getOrCreateDeviceIdClient } from "@/utils/deviceId";
+import { getCartByUser } from "@/store/bookings/actions";
+import { getAuthToken } from "@/utils/authCookies";
 import { reviews } from "@/helpers/const";
 import ReviewCard from "@/components/proxy/Reviews";
 import PricingSelector from "@/components/proxy/PricingSelector";
@@ -24,8 +21,7 @@ import PricingSelector from "@/components/proxy/PricingSelector";
 const Page = () => {
   const dispatch = useAppDispatch();
   const { id } = useParams();
-  const { user } = useAppSelector((state) => state.user);
-  const { cartItems, isOrderPaymentLoading, placingOrder } = useAppSelector(
+  const { isOrderPaymentLoading, placingOrder } = useAppSelector(
     (state) => state.booking
   );
   const {
