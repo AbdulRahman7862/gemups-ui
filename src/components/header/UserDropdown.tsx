@@ -10,7 +10,7 @@ import Image from "next/image";
 import PaymentBalanceModal from "../common/Modals/PaymentBalanceModal";
 import { createPayment } from "@/store/bookings/actions";
 import { toast } from "react-toastify";
-import { initiateWalletDeposit } from "@/store/user/actions";
+import { initiateWalletDeposit, initiateGuestWalletDeposit } from "@/store/user/actions";
 import { getUserBalance } from "@/store/user/actions";
 
 export default function UserDropdown() {
@@ -76,14 +76,19 @@ export default function UserDropdown() {
   };
 
   const handlePayment = async (amount: number, method: string) => {
-    if (!user?.id) {
+    if (!user) {
       toast.error("Please sign in to make a payment");
       return;
     }
     setDepositLoading(true);
     try {
+      // Check if user is a guest user
+      const isGuestUser = user?.isGuest === true;
+      
       const result = await dispatch(
-        initiateWalletDeposit({ amount })
+        isGuestUser 
+          ? initiateGuestWalletDeposit({ amount })
+          : initiateWalletDeposit({ amount })
       ).unwrap();
 
       if (result?.paymentUrl && result?.order_id) {
@@ -92,8 +97,8 @@ export default function UserDropdown() {
       } else {
         throw new Error("Payment URL or order_id not found in response");
       }
-    } catch (error) {
-      toast.error("Failed to initiate payment");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to initiate payment");
     } finally {
       setDepositLoading(false);
     }

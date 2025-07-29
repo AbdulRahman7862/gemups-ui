@@ -260,6 +260,19 @@ export const initiateWalletDeposit = createAsyncThunk(
   }
 );
 
+// Initiate guest wallet deposit
+export const initiateGuestWalletDeposit = createAsyncThunk(
+  "user/initiateGuestWalletDeposit",
+  async ({ amount }: { amount: number }, thunkAPI) => {
+    try {
+      const response = await axiosInstance.post("/order/deposit", { amount });
+      return response.data;
+    } catch (error: any) {
+      return thunkAPI.rejectWithValue(error.response?.data || { message: error.message });
+    }
+  }
+);
+
 // Check wallet deposit status - DISABLED: Using webhook instead
 // export const checkWalletDepositStatus = createAsyncThunk(
 //   "user/checkWalletDepositStatus",

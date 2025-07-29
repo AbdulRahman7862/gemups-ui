@@ -14,6 +14,7 @@ import {
   loginGuestUserAction,
   initializeGuestUserAction,
   convertGuestToRegularUserAction,
+  initiateGuestWalletDeposit,
 } from "./actions";
 import { UserState } from "./interface";
 import { setAuthToken, clearUserUID, clearAllAuthCookies } from "@/utils/authCookies";
@@ -269,6 +270,23 @@ export const userSlice = createSlice({
       })
       .addCase(convertGuestToRegularUserAction.rejected, (state, action: PayloadAction<any>) => {
         toast.error(action?.payload?.message || "Failed to convert to regular user");
+        state.isLoading = false;
+      })
+
+      // Guest Wallet Deposit
+      .addCase(initiateGuestWalletDeposit.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(initiateGuestWalletDeposit.fulfilled, (state, action: PayloadAction<any>) => {
+        if (action.payload.success) {
+          toast.success(action?.payload?.message || "Guest wallet deposit initiated successfully");
+        } else {
+          toast.error(action?.payload?.message || "Failed to initiate guest wallet deposit");
+        }
+        state.isLoading = false;
+      })
+      .addCase(initiateGuestWalletDeposit.rejected, (state, action: PayloadAction<any>) => {
+        toast.error(action?.payload?.message || "Failed to initiate guest wallet deposit");
         state.isLoading = false;
       });
 
