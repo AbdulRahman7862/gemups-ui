@@ -14,7 +14,7 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
   const user = useAppSelector((state) => state.user.user);
 
   // Define public routes that don't require authentication
-  const publicRoutes = ["/signin", "/signup"];
+  const publicRoutes = ["/signin", "/signup", "/proxy", "/proxy/detail"];
   const isPublicRoute = publicRoutes.some(route => 
     pathname === route || pathname.startsWith(`${route}/`)
   );

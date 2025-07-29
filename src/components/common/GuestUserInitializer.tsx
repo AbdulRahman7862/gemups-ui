@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { initializeGuestUserAction } from "@/store/user/actions";
-import { getAuthToken, hasUserLoggedOut } from "@/utils/authCookies";
+import { getAuthToken, hasUserLoggedOut, getUserUID } from "@/utils/authCookies";
 import { usePathname } from "next/navigation";
 
 interface GuestUserInitializerProps {
@@ -18,6 +18,7 @@ export const GuestUserInitializer: React.FC<GuestUserInitializerProps> = ({ chil
   useEffect(() => {
     const initializeGuest = async () => {
       const token = getAuthToken();
+      const userUID = getUserUID();
       const userHasLoggedOut = hasUserLoggedOut();
       
       // Don't initialize guest user if user has explicitly logged out
@@ -41,6 +42,7 @@ export const GuestUserInitializer: React.FC<GuestUserInitializerProps> = ({ chil
       if (!token && !user && !isLoading) {
         try {
           console.log("DEBUG: No token found, initializing guest user");
+          console.log("DEBUG: User UID from localStorage:", userUID);
           await dispatch(initializeGuestUserAction({}));
         } catch (error) {
           console.error("Failed to initialize guest user:", error);
@@ -50,6 +52,7 @@ export const GuestUserInitializer: React.FC<GuestUserInitializerProps> = ({ chil
       else if (token && !user && !isLoading) {
         try {
           console.log("DEBUG: Token exists but user not found, initializing guest user");
+          console.log("DEBUG: User UID from localStorage:", userUID);
           await dispatch(initializeGuestUserAction({}));
         } catch (error) {
           console.error("Failed to initialize guest user:", error);

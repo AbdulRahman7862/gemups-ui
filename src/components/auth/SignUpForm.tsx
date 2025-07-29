@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { BeatLoader } from "react-spinners";
 import { getOrCreateDeviceIdClient } from "@/utils/deviceId";
 import { encryptData } from "@/utils/crypto";
+import { clearUserLoggedOutFlag } from "@/utils/authCookies";
 
 export default function SignUpForm() {
   const dispatch = useAppDispatch();
@@ -61,6 +62,9 @@ export default function SignUpForm() {
 
   const handleGuestLogin = async () => {
     try {
+      // Clear the logout flag when user explicitly chooses to continue as guest
+      clearUserLoggedOutFlag();
+      
       await dispatch(
         initializeGuestUserAction({
           onSuccess: () => {
