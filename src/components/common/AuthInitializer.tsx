@@ -2,7 +2,7 @@
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addUser, getUserDetail } from "@/store/user/actions";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { getAuthToken, getUserUID, setUserUID } from "@/utils/authCookies";
 
@@ -12,6 +12,7 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
   const user = useAppSelector((state) => state.user.user);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   // Define public routes that don't require authentication
   const publicRoutes = ["/signin", "/signup", "/proxy", "/proxy/detail"];
@@ -19,13 +20,28 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
     pathname === route || pathname.startsWith(`${route}/`)
   );
 
+  // Handle hydration
   useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    // Only run after hydration to avoid SSR mismatch
+    if (!isHydrated) return;
+    console.log("DEBUG: AuthInitializer useEffect triggered");
+    console.log("DEBUG: Current pathname:", pathname);
+    console.log("DEBUG: Is public route:", isPublicRoute);
+    
     const initializeAuth = async () => {
       const token = getAuthToken();
       const uid = getUserUID();
       
+      console.log("DEBUG: AuthInitializer - Token exists:", !!token);
+      console.log("DEBUG: AuthInitializer - UID exists:", !!uid);
+      
       try {
         if (token) {
+          console.log("DEBUG: AuthInitializer - Token found, skipping guest init");
           // TODO: Implement user profile fetch when endpoint is available
           // const result = await dispatch(getUserDetail());
           // if (getUserDetail.rejected.match(result)) {
@@ -35,11 +51,15 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
           //   return;
           // }
         } else if (uid) {
+          console.log("DEBUG: AuthInitializer - UID found, proceeding as guest");
           // No token but has UID - proceed as guest
           await handleAddUserFlow(uid);
         } else if (!isPublicRoute) {
+          console.log("DEBUG: AuthInitializer - No token, no UID, not public route - redirecting to signin");
           // No token and no UID - redirect to login only for non-public routes
           router.replace("/signin");
+        } else {
+          console.log("DEBUG: AuthInitializer - Public route, allowing access");
         }
       } catch (error) {
         console.error("Authentication initialization error:", error);
@@ -80,7 +100,7 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
     return () => {
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, [dispatch, router, pathname, isPublicRoute]);
+  }, [dispatch, router, pathname, isPublicRoute, isHydrated]);
 
   return <>{children}</>;
 };

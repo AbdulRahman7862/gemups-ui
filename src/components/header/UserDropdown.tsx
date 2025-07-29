@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { logoutUser } from "@/store/user/userSlice";
 import { useAuthStatus } from "@/hooks/useAuthStatus";
@@ -15,7 +15,6 @@ import { getUserBalance } from "@/store/user/actions";
 
 export default function UserDropdown() {
   const dispatch = useAppDispatch();
-  const pathname = usePathname();
   const { user, walletBalance } = useAppSelector((state) => state.user);
   const { isCreatePaymentLoading } = useAppSelector((state) => state.booking);
   const { isAuthenticated, isGuest } = useAuthStatus();
@@ -61,13 +60,12 @@ export default function UserDropdown() {
   function handleLogout() {
     dispatch(logoutUser());
 
-    const publicRoutes = ["/proxy", "/proxy/detail"];
-
-    const isPublicPage = publicRoutes.some(
-      (route) => pathname === route || pathname.startsWith(`${route}/`)
-    );
-
-    if (!isPublicPage) {
+    // Check if user is a guest user
+    if (user?.isGuest) {
+      // Guest users redirect to signin page
+      router.push("/signin");
+    } else {
+      // Regular users redirect to proxy page
       router.push("/proxy");
     }
   }

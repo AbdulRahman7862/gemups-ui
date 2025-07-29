@@ -3,7 +3,7 @@ import CartDrawer from "@/components/common/Modals/CartDrawer";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
 import { useAuthStatus } from "@/hooks/useAuthStatus";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { getUserBalance } from "@/store/user/actions";
 import { getAuthToken } from "@/utils/authCookies";
 import Image from "next/image";
@@ -18,6 +18,7 @@ const AppHeader: React.FC = () => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const { isAuthenticated, isGuest } = useAuthStatus();
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
+  const { user } = useAppSelector((state) => state.user);
 
   const handleToggle = () => {
     if (window.innerWidth >= 1024) {
@@ -57,7 +58,7 @@ const AppHeader: React.FC = () => {
     const token = getAuthToken();
     if (!token) return;
     dispatch(getUserBalance());
-  }, []);
+  }, [dispatch, user]); // Add user dependency to refetch when user changes
 
   return (
     <header className="sticky top-0 flex w-full bg-white border-gray-200 dark:border-gray-800 dark:bg-[#030507] lg:border-b z-10">

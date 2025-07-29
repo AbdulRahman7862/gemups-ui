@@ -241,7 +241,9 @@ export const userSlice = createSlice({
         if (action.payload.success) {
           state.user = action.payload.data.user;
           setAuthToken(action.payload.data.token);
-          toast.success(action?.payload?.message || "Guest user initialized successfully");
+          if (action.payload.showToast !== false) {
+            toast.success(action?.payload?.message || "Guest user initialized successfully");
+          }
         } else {
           toast.error(action?.payload?.message || "Failed to initialize guest user");
         }

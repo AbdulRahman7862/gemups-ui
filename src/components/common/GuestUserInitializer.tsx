@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { initializeGuestUserAction } from "@/store/user/actions";
-import { getAuthToken, hasUserLoggedOut, getUserUID } from "@/utils/authCookies";
+import { getAuthToken, hasUserLoggedOut } from "@/utils/authCookies";
 import { usePathname } from "next/navigation";
 
 interface GuestUserInitializerProps {
@@ -14,36 +14,66 @@ export const GuestUserInitializer: React.FC<GuestUserInitializerProps> = ({ chil
   const dispatch = useAppDispatch();
   const { user, isLoading } = useAppSelector((state) => state.user);
   const pathname = usePathname();
+  const [isHydrated, setIsHydrated] = useState(false);
+  const isLoggingOutRef = useRef(false);
+
+  // Handle hydration
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   useEffect(() => {
+    // Only run after hydration to avoid SSR mismatch
+    if (!isHydrated) return;
+    
+    // Check if we're in the process of logging out
+    const userHasLoggedOut = hasUserLoggedOut();
+    if (userHasLoggedOut && !isLoggingOutRef.current) {
+      isLoggingOutRef.current = true;
+    }
+    
     const initializeGuest = async () => {
       const token = getAuthToken();
-      const userUID = getUserUID();
       const userHasLoggedOut = hasUserLoggedOut();
-      
-      // Don't initialize guest user if user has explicitly logged out
-      if (userHasLoggedOut) {
-        console.log("DEBUG: User has logged out, not initializing guest user");
-        return;
-      }
       
       // Define routes where guest user initialization should happen
       const guestInitRoutes = ["/proxy", "/proxy/detail"];
+      const authRoutes = ["/signin", "/signup"];
+      
       const isGuestInitRoute = guestInitRoutes.some(route => 
         pathname === route || pathname.startsWith(`${route}/`)
       );
+      const isAuthRoute = authRoutes.some(route => 
+        pathname === route || pathname.startsWith(`${route}/`)
+      );
+      
+      // Never initialize guest user on auth routes
+      if (isAuthRoute) {
+        return;
+      }
       
       // Only initialize guest user on specific routes
       if (!isGuestInitRoute) {
         return;
       }
       
+      // If user has explicitly logged out, clear the flag and allow guest initialization
+      // Only do this on guest init routes, not on auth routes
+      if (userHasLoggedOut && isGuestInitRoute) {
+        // Clear the logout flag to allow guest user initialization
+        localStorage.removeItem("userLoggedOut");
+        isLoggingOutRef.current = false;
+      }
+      
+      // Don't initialize guest user if we're in the process of logging out
+      if (isLoggingOutRef.current) {
+        return;
+      }
+      
       // Initialize guest user if no token exists and no user is loaded
       if (!token && !user && !isLoading) {
         try {
-          console.log("DEBUG: No token found, initializing guest user");
-          console.log("DEBUG: User UID from localStorage:", userUID);
-          await dispatch(initializeGuestUserAction({}));
+          await dispatch(initializeGuestUserAction({ showToast: false }));
         } catch (error) {
           console.error("Failed to initialize guest user:", error);
         }
@@ -51,9 +81,7 @@ export const GuestUserInitializer: React.FC<GuestUserInitializerProps> = ({ chil
       // If token exists but user is null (user not found), initialize guest user
       else if (token && !user && !isLoading) {
         try {
-          console.log("DEBUG: Token exists but user not found, initializing guest user");
-          console.log("DEBUG: User UID from localStorage:", userUID);
-          await dispatch(initializeGuestUserAction({}));
+          await dispatch(initializeGuestUserAction({ showToast: false }));
         } catch (error) {
           console.error("Failed to initialize guest user:", error);
         }
@@ -61,7 +89,7 @@ export const GuestUserInitializer: React.FC<GuestUserInitializerProps> = ({ chil
     };
 
     initializeGuest();
-  }, [dispatch, user, isLoading, pathname]);
+  }, [dispatch, user, isLoading, pathname, isHydrated]);
 
   return <>{children}</>;
 }; 

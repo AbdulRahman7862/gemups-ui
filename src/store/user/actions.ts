@@ -314,9 +314,9 @@ export const loginGuestUserAction = createAsyncThunk<any, { onSuccess?: () => vo
   }
 );
 
-export const initializeGuestUserAction = createAsyncThunk<any, { onSuccess?: () => void }, { rejectValue: any }>(
+export const initializeGuestUserAction = createAsyncThunk<any, { onSuccess?: () => void; showToast?: boolean }, { rejectValue: any }>(
   "user/initializeGuestUser",
-  async ({ onSuccess }, thunkAPI) => {
+  async ({ onSuccess, showToast = true }, thunkAPI) => {
     try {
       const response = await initializeGuestUser();
       onSuccess?.();
@@ -327,6 +327,7 @@ export const initializeGuestUserAction = createAsyncThunk<any, { onSuccess?: () 
           token: response.data.token,
         },
         message: response.message || "Guest user initialized successfully",
+        showToast,
       };
     } catch (error: any) {
       return thunkAPI.rejectWithValue(error.message || "Failed to initialize guest user");
