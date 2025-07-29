@@ -14,7 +14,7 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
   const user = useAppSelector((state) => state.user.user);
 
   // Define public routes that don't require authentication
-  const publicRoutes = ["/proxy", "/proxy/detail", "/signin", "/signup"];
+  const publicRoutes = ["/signin", "/signup"];
   const isPublicRoute = publicRoutes.some(route => 
     pathname === route || pathname.startsWith(`${route}/`)
   );
@@ -38,7 +38,7 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
           // No token but has UID - proceed as guest
           await handleAddUserFlow(uid);
         } else if (!isPublicRoute) {
-          // No token and no UID - redirect to login
+          // No token and no UID - redirect to login only for non-public routes
           router.replace("/signin");
         }
       } catch (error) {

@@ -16,6 +16,11 @@ const AuthInitializer = dynamic(() => import("@/components/common/AuthInitialize
   ssr: false,
 });
 
+// Dynamically import GuestUserInitializer with no SSR
+const GuestUserInitializer = dynamic(() => import("@/components/common/GuestUserInitializer").then(mod => ({ default: mod.GuestUserInitializer })), {
+  ssr: false,
+});
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -26,12 +31,14 @@ export default function RootLayout({
       <body className={`${inter.className} dark:bg-[#030507]`}>
         <Providers>
           <AuthInitializer>
-            <ToastContainer position="top-right" autoClose={3000} />
-            <ThemeProvider>
-              <SidebarProvider>
-                {children}
-              </SidebarProvider>
-            </ThemeProvider>
+            <GuestUserInitializer>
+              <ToastContainer position="top-right" autoClose={3000} />
+              <ThemeProvider>
+                <SidebarProvider>
+                  {children}
+                </SidebarProvider>
+              </ThemeProvider>
+            </GuestUserInitializer>
           </AuthInitializer>
         </Providers>
       </body>

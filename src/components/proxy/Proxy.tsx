@@ -3,11 +3,10 @@ import React, { useEffect, useState } from "react";
 import FiltersModal from "./FiltersModal";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { getProxies } from "@/store/proxies/actions";
-import { initializeGuestUserAction } from "@/store/user/actions";
 import { ChevronDown, Loader } from "lucide-react";
 import ProxyCard from "./ProxyCard";
 import { useAuthStatus } from "@/hooks/useAuthStatus";
-import { getAuthToken, hasUserLoggedOut } from "@/utils/authCookies";
+import { hasUserLoggedOut } from "@/utils/authCookies";
 import { useRouter } from "next/navigation";
 
 const FILTERS = [
@@ -39,40 +38,7 @@ const Proxy: React.FC = () => {
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const { isLoading: authLoading } = useAuthStatus();
 
-  // Initialize guest user if not authenticated or user not found
-  useEffect(() => {
-    const initializeGuestIfNeeded = async () => {
-      const token = getAuthToken();
-      const userHasLoggedOut = hasUserLoggedOut();
-      
-      // Don't initialize guest user if user has explicitly logged out
-      if (userHasLoggedOut) {
-        console.log("DEBUG: User has logged out, not initializing guest user");
-        return;
-      }
-      
-      // If no token exists and auth is not loading, initialize guest user
-      if (!token && !authLoading) {
-        try {
-          console.log("DEBUG: No token found, initializing guest user");
-          await dispatch(initializeGuestUserAction({}));
-        } catch (error) {
-          console.error("Failed to initialize guest user:", error);
-        }
-      }
-      // If token exists but user is null (user not found), initialize guest user
-      else if (token && !user && !authLoading) {
-        try {
-          console.log("DEBUG: Token exists but user not found, initializing guest user");
-          await dispatch(initializeGuestUserAction({}));
-        } catch (error) {
-          console.error("Failed to initialize guest user:", error);
-        }
-      }
-    };
 
-    initializeGuestIfNeeded();
-  }, [dispatch, authLoading, user]);
 
   // Fetch proxies on component mount
   useEffect(() => {
