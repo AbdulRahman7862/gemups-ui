@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import Providers from "@/store/Providers";
 import { ToastContainer } from "react-toastify";
 import dynamic from "next/dynamic";
+import "react-toastify/dist/ReactToastify.css";
 
 
 const inter = Inter({ subsets: ["latin"] });

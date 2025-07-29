@@ -59,7 +59,8 @@ export const userSlice = createSlice({
         if (action.payload.success) {
           state.user = action.payload.data.user;
           setAuthToken(action.payload.data.token);
-          clearUserUID();
+          // Don't clear device UID - keep it for guest user continuity
+          // clearUserUID();
           toast.success(action?.payload?.message || "Login successful");
         } else {
           toast.error(action?.payload?.message || "Login failed");
@@ -101,7 +102,8 @@ export const userSlice = createSlice({
         if (action.payload.success) {
           state.user = action.payload.data.user;
           setAuthToken(action.payload.data.token);
-          clearUserUID();
+          // Don't clear device UID - keep it for guest user continuity
+          // clearUserUID();
           toast.success(action?.payload?.message || "Signup successful");
         } else {
           toast.error(action?.payload?.message || "Signup failed");
@@ -120,7 +122,8 @@ export const userSlice = createSlice({
         if (action.payload.success) {
           state.user = action.payload.data.existing;
           setAuthToken(action.payload.data.token);
-          clearUserUID();
+          // Don't clear device UID - keep it for guest user continuity
+          // clearUserUID();
           toast.success(action?.payload?.message || "Profile updated successfully");
         } else {
           toast.error(action?.payload?.message || "Profile update failed");

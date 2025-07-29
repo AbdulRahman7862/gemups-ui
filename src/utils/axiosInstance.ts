@@ -25,7 +25,7 @@ axiosInstance.interceptors.request.use(
   }
 );
 
-// Handle 401 responses
+// Handle 401 and 500 responses
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -35,6 +35,16 @@ axiosInstance.interceptors.response.use(
         clearAllAuthCookies();
       }
     }
+    
+    // Log 500 errors for debugging
+    if (error.response?.status === 500) {
+      console.log("DEBUG: 500 Internal Server Error detected:", {
+        url: error.config?.url,
+        method: error.config?.method,
+        error: error.response?.data
+      });
+    }
+    
     return Promise.reject(error);
   }
 );

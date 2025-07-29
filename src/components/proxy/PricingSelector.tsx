@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addToCart, updateCartItem } from "@/store/bookings/actions";
 import { toast } from "react-toastify";
@@ -26,8 +26,6 @@ interface PricingSelectorProps {
   setIsCartModalOpen?: (value: boolean) => void;
   otherSellers?: any[];
   selectedProxy?: any;
-  selectedCountry?: { code: string; name: string; flag: string };
-  onCountryChange?: (country: { code: string; name: string; flag: string }) => void;
 }
 
 const PricingSelector: React.FC<PricingSelectorProps> = ({
@@ -43,16 +41,13 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
   setIsCartModalOpen,
   otherSellers,
   selectedProxy,
-  selectedCountry,
-  onCountryChange,
 }) => {
-  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
-  const countryDropdownRef = useRef<HTMLDivElement>(null);
+
   const dispatch = useAppDispatch();
   const { addingtoCart, updatingItem, cartItems } = useAppSelector(
     (state) => state.booking
   );
-  const [isProcessingGuest, setIsProcessingGuest] = useState(false);
+
   const popularTier = pricingPlans?.find((tier) => tier?.isPopular);
   const otherTiers = pricingPlans?.filter((tier) => !tier?.isPopular);
 
@@ -67,19 +62,7 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
 
   const providerId = getProviderId();
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (countryDropdownRef.current && !countryDropdownRef.current.contains(event.target as Node)) {
-        setIsCountryDropdownOpen(false);
-      }
-    };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
 
   const handleAddToCart = async () => {
     if (!providerId) {
@@ -230,92 +213,7 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
             ))}
           </div>
           
-          {/* Country Dropdown */}
-          {selectedCountry && onCountryChange && selectedProxy?.supportedCountries?.length > 0 && (
-            <div className="mb-4" ref={countryDropdownRef}>
-              <label className="block text-sm font-medium text-white mb-2">
-                Country
-              </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)}
-                  className="w-full h-[40px] flex items-center justify-between px-2 py-2 bg-[#1A1F2B] border border-gray-600 rounded-lg text-white hover:border-gray-500 transition-colors"
-                  style={{
-                    gap: "8px",
-                    padding: "8px",
-                    borderRadius: "8px",
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{selectedCountry.flag}</span>
-                    <span className="text-sm font-medium">{selectedCountry.name}</span>
-                  </div>
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className={`text-gray-400 transition-transform ${
-                      isCountryDropdownOpen ? "rotate-180" : ""
-                    }`}
-                  >
-                    <polyline points="6,9 12,15 18,9"></polyline>
-                  </svg>
-                </button>
 
-                {isCountryDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-[#1A1F2B] border border-gray-600 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
-                    {(() => {
-                      // Get supported countries from API response
-                      const supportedCountries = selectedProxy?.supportedCountries || [];
-                      
-                      // Map country codes to full country data
-                      const countryMap: { [key: string]: { code: string; name: string; flag: string } } = {
-                        "US": { code: "US", name: "USA", flag: "🇺🇸" },
-                        "CA": { code: "CA", name: "Canada", flag: "🇨🇦" },
-                        "GB": { code: "GB", name: "United Kingdom", flag: "🇬🇧" },
-                        "DE": { code: "DE", name: "Germany", flag: "🇩🇪" },
-                        "FR": { code: "FR", name: "France", flag: "🇫🇷" },
-                        "AU": { code: "AU", name: "Australia", flag: "🇦🇺" },
-                        "NL": { code: "NL", name: "Netherlands", flag: "🇳🇱" },
-                        "SE": { code: "SE", name: "Sweden", flag: "🇸🇪" },
-                        "NO": { code: "NO", name: "Norway", flag: "🇳🇴" },
-                        "CH": { code: "CH", name: "Switzerland", flag: "🇨🇭" },
-                        "JP": { code: "JP", name: "Japan", flag: "🇯🇵" },
-                        "SG": { code: "SG", name: "Singapore", flag: "🇸🇬" },
-                      };
-                      
-                      // Filter to only show supported countries
-                      const availableCountries = supportedCountries
-                        .map((code: string) => countryMap[code])
-                        .filter((country: any): country is { code: string; name: string; flag: string } => Boolean(country));
-                      
-                      return availableCountries;
-                    })().map((country: { code: string; name: string; flag: string }) => (
-                      <button
-                        key={country.code}
-                        type="button"
-                        onClick={() => {
-                          onCountryChange(country);
-                          setIsCountryDropdownOpen(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-white hover:bg-gray-700 transition-colors"
-                        style={{ gap: "8px", padding: "8px" }}
-                      >
-                        <span className="text-lg">{country.flag}</span>
-                        <span className="text-sm">{country.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           <div className="flex items-center justify-between mb-5 flex-wrap gap-y-2">
             <div className="flex items-center space-x-2">
@@ -372,11 +270,11 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
              addingtoCart ? "opacity-70 cursor-not-allowed" : ""
            }`}
               disabled={
-                addingtoCart || updatingItem || quantity === 0 || isProcessingGuest || !providerId
+                addingtoCart || updatingItem || quantity === 0 || !providerId
               }
               onClick={handleAddToCart}
             >
-              {addingtoCart || updatingItem || isProcessingGuest ? (
+              {addingtoCart || updatingItem ? (
                 <>
                   <Loader className="animate-spin h-4 w-4" />
                   Adding...

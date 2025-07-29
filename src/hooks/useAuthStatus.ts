@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuthToken, getUserUID } from "@/utils/authCookies";
+import { getAuthToken, getUserUID, hasUserLoggedOut } from "@/utils/authCookies";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetUserSlice } from "@/store/user/userSlice";
 import { resetBookingSlice } from "@/store/bookings/bookingSlice";
@@ -17,8 +17,19 @@ export function useAuthStatus() {
     const checkAuth = () => {
       const token = getAuthToken();
       const userUID = getUserUID();
+      const userHasLoggedOut = hasUserLoggedOut();
 
       const hasToken = !!token;
+
+      // If user has explicitly logged out, show login/signup buttons
+      if (userHasLoggedOut) {
+        dispatch(resetUserSlice());
+        dispatch(resetBookingSlice());
+        setIsAuthenticated(false);
+        setIsGuest(false);
+        setIsLoading(false);
+        return;
+      }
 
       // Only log out if token is missing from localStorage
       if (!hasToken) {

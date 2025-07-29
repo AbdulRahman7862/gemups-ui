@@ -26,6 +26,21 @@ export const clearUserUID = () => {
 
 export const clearAllAuthCookies = () => {
   clearAuthToken();
-  clearUserUID();
+  // Don't clear the device UID - keep it for guest user continuity
+  // clearUserUID(); // ← Removed this line
+  // Set a flag to indicate user has explicitly logged out
+  localStorage.setItem("userLoggedOut", "true");
+};
+
+export const setUserLoggedOut = () => {
+  localStorage.setItem("userLoggedOut", "true");
+};
+
+export const clearUserLoggedOutFlag = () => {
+  localStorage.removeItem("userLoggedOut");
+};
+
+export const hasUserLoggedOut = (): boolean => {
+  return localStorage.getItem("userLoggedOut") === "true";
 };
 

@@ -322,7 +322,7 @@ export const getProxyOrderDetails = createAsyncThunk<any, string>(
             // Try using the order endpoint instead
             try {
               response = await axiosInstance.get(`/api/order/${orderNo}`);
-              return response.data;
+      return response.data;
             } catch (thirdError: any) {
               console.log(`DEBUG: Third attempt failed for ${orderNo}:`, thirdError.response?.status);
               
@@ -350,8 +350,8 @@ export const getProxyOrderDetails = createAsyncThunk<any, string>(
       
       // Don't show toast for 400 errors as they might be expected for some orders
       if (error.response?.status !== 400) {
-        const errorMessage = error.response?.data?.message || error.response?.data?.error || "Failed to fetch proxy order details";
-        toast.error(errorMessage);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || "Failed to fetch proxy order details";
+      toast.error(errorMessage);
       }
       
       return thunkAPI.rejectWithValue(error.response?.data);

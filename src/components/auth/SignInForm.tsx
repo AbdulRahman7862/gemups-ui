@@ -11,6 +11,7 @@ import { loginUser, initializeGuestUserAction } from "@/store/user/actions";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useRouter } from "next/navigation";
 import { BeatLoader } from "react-spinners";
+import { clearUserLoggedOutFlag } from "@/utils/authCookies";
 
 export default function SignInForm() {
   const dispatch = useAppDispatch();
@@ -44,6 +45,9 @@ export default function SignInForm() {
   const handleSubmit = async (values: any) => {
     setFormError("");
     try {
+      // Clear the logout flag when user explicitly logs in
+      clearUserLoggedOutFlag();
+      
       // Prepare payload
       const payload = {
         email: values.email,
@@ -71,6 +75,9 @@ export default function SignInForm() {
 
   const handleGuestLogin = async () => {
     try {
+      // Clear the logout flag when user explicitly chooses to continue as guest
+      clearUserLoggedOutFlag();
+      
       await dispatch(
         initializeGuestUserAction({
           onSuccess: () => {
@@ -189,7 +196,7 @@ export default function SignInForm() {
               }}
             </Formik>
 
-            <div className="mt-6 space-y-4">
+                        <div className="mt-6 space-y-4">
               <div className="text-center">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
                   <button
@@ -209,7 +216,7 @@ export default function SignInForm() {
                 <div className="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
               </div>
 
-              <div className="text-center">
+                <div className="text-center">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
                   Don&apos;t have an account? {""}
                   <Link

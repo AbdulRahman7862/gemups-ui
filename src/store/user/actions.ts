@@ -103,7 +103,7 @@ export const getUserDetail = createAsyncThunk(
   async (_, thunkAPI) => {
     try {
       // Make the request with the token in the Authorization header
-      const response = await axiosInstance.get("/users/me");
+      const response = await axiosInstance.get("/auth/me");
 
       if (response.data) {
         return response.data;
@@ -111,6 +111,25 @@ export const getUserDetail = createAsyncThunk(
         return thunkAPI.rejectWithValue("Failed to fetch user details");
       }
     } catch (error: any) {
+      // If it's a 500 error (user not found), try to initialize guest user
+      if (error.response?.status === 500) {
+        console.log("DEBUG: 500 error in getUserDetail, attempting to initialize guest user");
+        try {
+          const guestResponse = await initializeGuestUser();
+          console.log("DEBUG: Guest user initialized successfully after 500 error");
+          // Return the guest user data
+          return {
+            success: true,
+            data: guestResponse.data.user,
+            message: "Guest user initialized"
+          };
+        } catch (guestError) {
+          console.error("DEBUG: Failed to initialize guest user after 500 error:", guestError);
+          toast.error("Failed to initialize guest user");
+          return thunkAPI.rejectWithValue("Failed to initialize guest user");
+        }
+      }
+      
       const errorMessage = error.response?.data || "Failed to fetch user details";
       toast.error(errorMessage);
       return thunkAPI.rejectWithValue(errorMessage);
@@ -203,6 +222,25 @@ export const getUserBalance = createAsyncThunk<UserBalanceResponse, void>(
       const response = await axiosInstance.get(`/api/wallet/balance`);
       return response.data;
     } catch (error: any) {
+      // If it's a 500 error (user not found), try to initialize guest user
+      if (error.response?.status === 500) {
+        console.log("DEBUG: 500 error in getUserBalance, attempting to initialize guest user");
+        try {
+          const guestResponse = await initializeGuestUser();
+          console.log("DEBUG: Guest user initialized successfully after 500 error");
+          // Return a default balance for guest user
+          return {
+            success: true,
+            balance: 0,
+            message: "Guest user initialized"
+          };
+        } catch (guestError) {
+          console.error("DEBUG: Failed to initialize guest user after 500 error:", guestError);
+          toast.error("Failed to initialize guest user");
+          return thunkAPI.rejectWithValue("Failed to initialize guest user");
+        }
+      }
+      
       toast.error(error.response?.data?.message || "Failed to fetch user balance");
       return thunkAPI.rejectWithValue(error.response?.data || "Unknown error");
     }

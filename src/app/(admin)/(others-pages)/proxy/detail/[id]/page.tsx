@@ -40,11 +40,7 @@ const Page = () => {
   const [selectedTier, setSelectedTier] = useState<(typeof pricingPlans)[0]>(
     pricingPlans[0]
   );
-  const [selectedCountry, setSelectedCountry] = useState<{
-    code: string;
-    name: string;
-    flag: string;
-  }>({ code: "US", name: "USA", flag: "🇺🇸" });
+
   const [isCopied, setIsCopied] = useState(false);
 
   const handleTierSelect = (tier: any) => {
@@ -52,9 +48,7 @@ const Page = () => {
     setQuantity(1);
   };
 
-  const handleCountryChange = (country: { code: string; name: string; flag: string }) => {
-    setSelectedCountry(country);
-  };
+
 
   const closePaymentModal = () => setIsPaymentModalOpen(false);
 
@@ -105,32 +99,7 @@ const Page = () => {
     }
   }, [pricingPlans]);
 
-  // Set initial selected country based on supported countries from API
-  useEffect(() => {
-    if (selectedProxy?.supportedCountries?.length > 0) {
-      const supportedCountries = selectedProxy.supportedCountries;
-      const countryMap: { [key: string]: { code: string; name: string; flag: string } } = {
-        "US": { code: "US", name: "USA", flag: "🇺🇸" },
-        "CA": { code: "CA", name: "Canada", flag: "🇨🇦" },
-        "GB": { code: "GB", name: "United Kingdom", flag: "🇬🇧" },
-        "DE": { code: "DE", name: "Germany", flag: "🇩🇪" },
-        "FR": { code: "FR", name: "France", flag: "🇫🇷" },
-        "AU": { code: "AU", name: "Australia", flag: "🇦🇺" },
-        "NL": { code: "NL", name: "Netherlands", flag: "🇳🇱" },
-        "SE": { code: "SE", name: "Sweden", flag: "🇸🇪" },
-        "NO": { code: "NO", name: "Norway", flag: "🇳🇴" },
-        "CH": { code: "CH", name: "Switzerland", flag: "🇨🇭" },
-        "JP": { code: "JP", name: "Japan", flag: "🇯🇵" },
-        "SG": { code: "SG", name: "Singapore", flag: "🇸🇬" },
-      };
-      
-      // Set the first supported country as default
-      const firstSupportedCountry = countryMap[supportedCountries[0]];
-      if (firstSupportedCountry) {
-        setSelectedCountry(firstSupportedCountry);
-      }
-    }
-  }, [selectedProxy]);
+
 
 
   return (
@@ -242,8 +211,6 @@ const Page = () => {
               setIsCartModalOpen={setIsCartModalOpen}
               otherSellers={otherSellers}
               selectedProxy={selectedProxy}
-              selectedCountry={selectedCountry}
-              onCountryChange={handleCountryChange}
             />
             <div
               className="bg-[#003b2e] p-4 rounded-xl flex items-center justify-between mt-3 text-white cursor-pointer"

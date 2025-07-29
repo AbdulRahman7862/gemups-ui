@@ -1,6 +1,6 @@
 import { getOrCreateDeviceIdClient } from "./deviceId";
 import { axiosInstance } from "./axiosInstance";
-import { setAuthToken } from "./authCookies";
+import { setAuthToken, getAuthToken } from "./authCookies";
 
 export interface GuestUserResponse {
   success: boolean;
@@ -39,18 +39,25 @@ export const getDeviceUid = (): string => {
 export const createGuestUser = async (): Promise<GuestUserResponse> => {
   try {
     const deviceUid = getDeviceUid();
+    console.log("DEBUG: Creating new guest user with device UID:", deviceUid);
     
-    const response = await axiosInstance.post<GuestUserResponse>("/api/auth/add-user", {
+    const response = await axiosInstance.post<GuestUserResponse>("/auth/add-user", {
       uid: deviceUid
     });
+
+    console.log("DEBUG: Create guest user response:", response.data);
 
     if (response.data.success) {
       // Store token using existing auth utility
       setAuthToken(response.data.data.token);
+      console.log("DEBUG: Successfully created guest user");
     }
 
     return response.data;
   } catch (error: any) {
+    console.error("DEBUG: Create guest user error:", error.response?.data || error.message);
+    console.error("DEBUG: Error response status:", error.response?.status);
+    console.error("DEBUG: Error response data:", error.response?.data);
     throw new Error(error.response?.data?.message || "Failed to create guest user");
   }
 };
@@ -61,18 +68,47 @@ export const createGuestUser = async (): Promise<GuestUserResponse> => {
 export const loginGuestUser = async (): Promise<GuestUserResponse> => {
   try {
     const deviceUid = getDeviceUid();
+    console.log("DEBUG: Attempting to login guest user with device UID:", deviceUid);
     
-    const response = await axiosInstance.post<GuestUserResponse>("/api/auth/login", {
+    // Use the add-user endpoint which handles both login and creation
+    // It checks if user exists and returns existing user or creates new one
+    const response = await axiosInstance.post<GuestUserResponse>("/auth/add-user", {
       uid: deviceUid
     });
+
+    console.log("DEBUG: Login response:", response.data);
+    console.log("DEBUG: User ID from response:", response.data.data?.user?._id);
+    console.log("DEBUG: User UID from response:", response.data.data?.user?.uid);
+    console.log("DEBUG: Is this a new user?", response.data.data?.user?.createdAt);
 
     if (response.data.success) {
       // Store token using existing auth utility
       setAuthToken(response.data.data.token);
+      console.log("DEBUG: Successfully logged in guest user");
     }
 
     return response.data;
   } catch (error: any) {
+    console.error("DEBUG: Login guest user error:", error.response?.data || error.message);
+    console.error("DEBUG: Error response status:", error.response?.status);
+    console.error("DEBUG: Error response data:", error.response?.data);
+    console.error("DEBUG: Request URL:", error.config?.url);
+    console.error("DEBUG: Request data:", error.config?.data);
+    
+    // If user not found (404), this is expected - user doesn't exist yet
+    if (error.response?.status === 404) {
+      console.log("DEBUG: User not found (404) - this is expected for new devices");
+      throw new Error("User not found");
+    }
+    
+    // If it's a 400 error with "Email and password are required", 
+    // it means we're hitting the wrong endpoint
+    if (error.response?.status === 400 && 
+        error.response?.data?.message?.includes("Email and password are required")) {
+      console.error("DEBUG: Hitting wrong login endpoint - this should be guest user login");
+      throw new Error("Wrong login endpoint - guest user login failed");
+    }
+    
     throw new Error(error.response?.data?.message || "Failed to login guest user");
   }
 };
@@ -101,14 +137,51 @@ export const convertToRegularUser = async (userData: ConvertToRegularUserData): 
  */
 export const initializeGuestUser = async (): Promise<GuestUserResponse> => {
   try {
-    // First try to login existing guest user
-    try {
-      return await loginGuestUser();
-    } catch (loginError) {
-      // If login fails, create new guest user
-      return await createGuestUser();
+    console.log("DEBUG: Starting guest user initialization");
+    
+    // Check if there's already a token for this device
+    const existingToken = getAuthToken();
+    const deviceUid = getDeviceUid();
+    
+    console.log("DEBUG: Device UID:", deviceUid);
+    console.log("DEBUG: Existing token:", existingToken ? "Found" : "Not found");
+    
+    // If there's already a token, try to use it first
+    if (existingToken) {
+      console.log("DEBUG: Found existing token, attempting to validate");
+      try {
+        // Try to validate the existing token by making a request
+        const response = await axiosInstance.get("/auth/me");
+        console.log("DEBUG: Existing token is valid, reusing session");
+        console.log("DEBUG: User data from token validation:", response.data);
+        if (response.data) {
+          // Token is still valid, return the existing user data
+          return {
+            success: true,
+            data: {
+              user: response.data.data.user,
+              token: existingToken
+            },
+            message: "Existing guest user session restored"
+          };
+        }
+      } catch (tokenError: any) {
+        console.log("DEBUG: Token validation failed:", tokenError.response?.status, tokenError.response?.data);
+        // Token is invalid, clear it and continue with login/creation flow
+        console.log("DEBUG: Existing token is invalid, clearing and proceeding with login/creation");
+        localStorage.removeItem("token");
+      }
     }
+    
+    // Since we're using the same endpoint for both login and creation,
+    // we can just call loginGuestUser which will handle both cases
+    console.log("DEBUG: Attempting to login/create guest user with device UID:", deviceUid);
+    const response = await loginGuestUser();
+    console.log("DEBUG: Successfully initialized guest user");
+    console.log("DEBUG: Response data:", response);
+    return response;
   } catch (error: any) {
-    throw new Error(`Guest user initialization failed: ${error.message}`);
+    console.error("DEBUG: Guest user initialization failed:", error);
+    throw error;
   }
 }; 

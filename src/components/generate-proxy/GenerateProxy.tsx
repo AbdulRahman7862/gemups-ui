@@ -64,13 +64,12 @@ export default function GenerateProxy() {
   // 5. Update generateRandomProxy to use the full required format
   const generateRandomProxy = useCallback(
     (protocol?: string, format?: string, sessionIdOverride?: string) => {
-      const ip = selectedOrder?.host || `${Math.floor(Math.random() * 255)}.${Math.floor(
-        Math.random() * 255
-      )}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
-      const port = selectedOrder?.port || "10000";
+      // For guest users, always use hardcoded host and port
+      const ip = "128.14.70.10";
+      const port = "10000";
       const username = name || selectedOrder?.username || `user_${Math.random().toString(36).substring(2, 8)}`;
       const pass = password || selectedOrder?.passwd || `pass_${Math.random().toString(36).substring(2, 8)}`;
-      const protocolPrefix = protocol == "http(s)" ? "http" : "socks5";
+      const protocolPrefix = protocol === "http(s)" ? "http" : "socks5";
       const sessionId = sessionType === "Static"
         ? sessionIdOverride || ((window as any)._staticSessionId || ((window as any)._staticSessionId = Math.random().toString(36).substring(2, 10)))
         : Math.random().toString(36).substring(2, 10);
@@ -85,7 +84,7 @@ export default function GenerateProxy() {
         `session-${sessionId}`,
         `sessTime-${ttl}`,
       ].filter(Boolean).join("-");
-      if (format == "ip:port:login:password") {
+      if (format === "ip:port:login:password") {
         return `${protocolPrefix}://${ip}:${port}:${username}-${regionSuffix}:${pass}`;
       } else {
         return `${protocolPrefix}://${username}-${regionSuffix}:${pass}@${ip}:${port}`;
@@ -223,7 +222,7 @@ export default function GenerateProxy() {
         })
         .then((data) => {
           if (data?.data && Array.isArray(data.data)) {
-            setCities(data.data);
+          setCities(data.data);
             setSelectedCity(data.data?.[0]);
           } else {
             // Fallback: set empty cities if API doesn't return expected data
