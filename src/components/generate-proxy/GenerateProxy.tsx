@@ -41,6 +41,7 @@ export default function GenerateProxy() {
   const [rotation, setRotation] = useState("Rotating");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedProxies, setGeneratedProxies] = useState<string[]>([]);
+  const [proxiesGenerated, setProxiesGenerated] = useState(false);
   // 1. Add back protocol state
   const [protocol, setProtocol] = useState("http(s)");
   // Add loading states for location data
@@ -124,6 +125,8 @@ export default function GenerateProxy() {
         newProxies.push(generateRandomProxy(activeProtocol, format, staticSessionId));
       }
       setGeneratedProxies(newProxies);
+      setProxiesGenerated(true);
+      setShowMoreOptions(false);
       toast.success("Proxies generated successfully!");
     } catch (error) {
       console.error("Error generating proxies:", error);
