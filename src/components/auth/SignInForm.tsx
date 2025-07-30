@@ -12,6 +12,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useRouter } from "next/navigation";
 import { BeatLoader } from "react-spinners";
 import { clearUserLoggedOutFlag } from "@/utils/authCookies";
+import { getOrCreateDeviceIdClient } from '@/utils/deviceId';
 
 export default function SignInForm() {
   const dispatch = useAppDispatch();
@@ -77,9 +78,14 @@ export default function SignInForm() {
     try {
       // Clear the logout flag when user explicitly chooses to continue as guest
       clearUserLoggedOutFlag();
-      
+      // Get user_uid if available
+      let user_uid = undefined;
+      if (typeof window !== 'undefined') {
+        user_uid = localStorage.getItem('user_uid');
+      }
       await dispatch(
         initializeGuestUserAction({
+          ...(user_uid ? { user_uid } : {}),
           onSuccess: () => {
             router.push("/proxy");
           },
@@ -173,7 +179,7 @@ export default function SignInForm() {
                             Keep me logged in
                           </span>
                         </div>
-                        <Link href="#" className="text-xs sm:text-sm text-[#13F195]">
+                        <Link href="/forgot-password" className="text-xs sm:text-sm text-[#13F195]">
                           Forgot password?
                         </Link>
                       </div>

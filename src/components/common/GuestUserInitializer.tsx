@@ -32,8 +32,9 @@ export const GuestUserInitializer: React.FC<GuestUserInitializerProps> = ({ chil
       isLoggingOutRef.current = true;
     }
     
-    const initializeGuest = async () => {
-      const token = getAuthToken();
+    // Only handle logout prevention logic
+    // Guest user initialization will now be handled manually when user adds to cart
+    const handleLogoutPrevention = async () => {
       const userHasLoggedOut = hasUserLoggedOut();
       
       // Define routes where guest user initialization should happen
@@ -52,43 +53,21 @@ export const GuestUserInitializer: React.FC<GuestUserInitializerProps> = ({ chil
         return;
       }
       
-      // Only initialize guest user on specific routes
+      // Only handle logout prevention on specific routes
       if (!isGuestInitRoute) {
         return;
       }
       
-      // If user has explicitly logged out, clear the flag and allow guest initialization
+      // If user has explicitly logged out, clear the flag to allow future guest initialization
       // Only do this on guest init routes, not on auth routes
       if (userHasLoggedOut && isGuestInitRoute) {
-        // Clear the logout flag to allow guest user initialization
+        // Clear the logout flag to allow future guest user initialization
         localStorage.removeItem("userLoggedOut");
         isLoggingOutRef.current = false;
       }
-      
-      // Don't initialize guest user if we're in the process of logging out
-      if (isLoggingOutRef.current) {
-        return;
-      }
-      
-      // Initialize guest user if no token exists and no user is loaded
-      if (!token && !user && !isLoading) {
-        try {
-          await dispatch(initializeGuestUserAction({ showToast: false }));
-        } catch (error) {
-          console.error("Failed to initialize guest user:", error);
-        }
-      }
-      // If token exists but user is null (user not found), initialize guest user
-      else if (token && !user && !isLoading) {
-        try {
-          await dispatch(initializeGuestUserAction({ showToast: false }));
-        } catch (error) {
-          console.error("Failed to initialize guest user:", error);
-        }
-      }
     };
 
-    initializeGuest();
+    handleLogoutPrevention();
   }, [dispatch, user, isLoading, pathname, isHydrated]);
 
   return <>{children}</>;

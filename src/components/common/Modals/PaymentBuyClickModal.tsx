@@ -7,6 +7,7 @@ import { Loader } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import PaymentModal from "./PaymentModal";
+import { useGuestUser } from "@/hooks/useGuestUser";
 
 interface PaymentBuyClickModalProps {
   isOpen: boolean;
@@ -56,6 +57,7 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
   const dispatch = useAppDispatch();
   const { pricingPlans, fetchPricingPlans } = useAppSelector((state) => state.proxy);
   const { isOrderPaymentLoading, placingOrder, checkingOrderStatus } = useAppSelector((state) => state.booking);
+  const { initializeGuestUserForCart } = useGuestUser();
   const popularTier = pricingPlans?.find((tier) => tier.isPopular);
   const otherTiers = pricingPlans?.filter((tier) => !tier?.isPopular);
   const [quantity, setQuantity] = useState(1);
@@ -98,13 +100,17 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
       return;
     }
 
+    // Check if user needs guest user initialization
     const token = getAuthToken();
-
     if (!token) {
-      // Show login prompt instead of auto-creating guest session
-      toast.info("Please login or register to make a purchase");
-      // You can redirect to login page or show a login modal here
-      return;
+      try {
+        // Initialize guest user when buying
+        await initializeGuestUserForCart();
+        toast.success("Guest session created! You can now make purchases.");
+      } catch (error) {
+        toast.error("Failed to create guest session. Please try again.");
+        return;
+      }
     }
 
     console.log("DEBUG: Starting direct payment process with payload:", {

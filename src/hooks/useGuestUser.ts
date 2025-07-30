@@ -8,6 +8,7 @@ import {
   convertGuestToRegularUserAction 
 } from "@/store/user/actions";
 import { ConvertToRegularUserData } from "@/utils/guestUser";
+import { getAuthToken } from "@/utils/authCookies";
 
 export const useGuestUser = () => {
   const dispatch = useAppDispatch();
@@ -51,6 +52,30 @@ export const useGuestUser = () => {
     }
   };
 
+  // New function to handle guest user initialization when adding to cart
+  const initializeGuestUserForCart = async (onSuccess?: () => void) => {
+    try {
+      const token = getAuthToken();
+      
+      // If no token exists, initialize guest user
+      if (!token) {
+        await dispatch(initializeGuestUserAction({ onSuccess, showToast: false }));
+        return true;
+      }
+      
+      // If token exists but no user is loaded, try to initialize guest user
+      if (token && !user && !isLoading) {
+        await dispatch(initializeGuestUserAction({ onSuccess, showToast: false }));
+        return true;
+      }
+      
+      return false; // No initialization needed
+    } catch (error) {
+      console.error("Failed to initialize guest user for cart:", error);
+      throw error;
+    }
+  };
+
   return {
     isGuestUser,
     isLoading,
@@ -59,5 +84,6 @@ export const useGuestUser = () => {
     loginGuestUser,
     initializeGuestUser,
     convertToRegularUser,
+    initializeGuestUserForCart,
   };
 }; 

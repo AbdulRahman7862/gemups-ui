@@ -4,6 +4,8 @@ import { addToCart, updateCartItem } from "@/store/bookings/actions";
 import { toast } from "react-toastify";
 import { getAuthToken } from "@/utils/authCookies";
 import { Loader, ShoppingCart } from "lucide-react";
+import { useGuestUser } from "@/hooks/useGuestUser";
+import { getOrCreateDeviceIdClient } from '@/utils/deviceId';
 
 interface Tier {
   isPopular: unknown;
@@ -47,6 +49,7 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
   const { addingtoCart, updatingItem, cartItems } = useAppSelector(
     (state) => state.booking
   );
+  const { initializeGuestUserForCart } = useGuestUser();
 
   const popularTier = pricingPlans?.find((tier) => tier?.isPopular);
   const otherTiers = pricingPlans?.filter((tier) => !tier?.isPopular);
@@ -69,13 +72,18 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
       toast.error("No provider found for this product.");
       return;
     }
+    
+    // Check if user needs guest user initialization
     const token = getAuthToken();
-
     if (!token) {
-      // Show login prompt instead of auto-creating guest session
-      toast.info("Please login or register to add items to cart");
-      // You can redirect to login page or show a login modal here
-      return;
+      try {
+        // Initialize guest user when adding to cart
+        await initializeGuestUserForCart();
+        toast.success("Guest session created! You can now add items to cart.");
+      } catch (error) {
+        toast.error("Failed to create guest session. Please try again.");
+        return;
+      }
     }
     
     const currentTierId = `${selectedTier?.userDataAmount}-${selectedTier?.unit}`;
@@ -102,7 +110,9 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
         price: selectedTier?.price,
         isPopular: selectedTier?.isPopular,
         quantity: selectedTier?.quantity
-      }
+      },
+      // Add user_uid if available
+      ...(typeof window !== 'undefined' && localStorage.getItem('user_uid') ? { user_uid: localStorage.getItem('user_uid') } : {})
     };
     console.log('DEBUG addToCart payload:', addToCartPayload);
 

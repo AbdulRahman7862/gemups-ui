@@ -15,7 +15,7 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
   const [isHydrated, setIsHydrated] = useState(false);
 
   // Define public routes that don't require authentication
-  const publicRoutes = ["/signin", "/signup", "/proxy", "/proxy/detail"];
+  const publicRoutes = ["/signin", "/signup", "/proxy", "/proxy/detail", "/forgot-password"];
   const isPublicRoute = publicRoutes.some(route => 
     pathname === route || pathname.startsWith(`${route}/`)
   );
@@ -50,13 +50,9 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
           //   router.replace("/signin");
           //   return;
           // }
-        } else if (uid) {
-          console.log("DEBUG: AuthInitializer - UID found, proceeding as guest");
-          // No token but has UID - proceed as guest
-          await handleAddUserFlow(uid);
         } else if (!isPublicRoute) {
-          console.log("DEBUG: AuthInitializer - No token, no UID, not public route - redirecting to signin");
-          // No token and no UID - redirect to login only for non-public routes
+          console.log("DEBUG: AuthInitializer - No token, not public route - redirecting to signin");
+          // No token - redirect to login only for non-public routes
           router.replace("/signin");
         } else {
           console.log("DEBUG: AuthInitializer - Public route, allowing access");
@@ -67,24 +63,6 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
         if (!isPublicRoute) {
           router.replace("/signin");
         }
-      }
-    };
-
-
-
-    const handleAddUserFlow = async (uid: string) => {
-      try {
-        const payload = { uid };
-        await dispatch(
-          addUser({
-            payload,
-            onSuccess: () => {
-              setUserUID(uid);
-            },
-          })
-        );
-      } catch (error) {
-        console.error("Failed to dispatch addUser:", error);
       }
     };
 

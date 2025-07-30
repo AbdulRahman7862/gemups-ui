@@ -11,8 +11,6 @@ interface PaymentBalanceModalProps {
 
 const PAYMENT_METHODS = [
   { key: "cryptomus", label: "Cryptomus" },
-  { key: "custompay", label: "CustomPay", comingSoon: true },
-  { key: "stripe", label: "Stripe(Card)", comingSoon: true },
 ];
 
 const AMOUNT_OPTIONS = [10, 20, 50, 100];
@@ -28,11 +26,7 @@ const PaymentBalanceModal: React.FC<PaymentBalanceModalProps> = ({
   const [amount, setAmount] = useState(initialAmount || 10);
 
   const handleMethodSelect = (method: string) => {
-    // Don't allow selection of coming soon methods
-    const methodData = PAYMENT_METHODS.find((m) => m.key === method);
-    if (!methodData?.comingSoon) {
-      setSelectedMethod(method);
-    }
+    setSelectedMethod(method);
   };
 
   const handleAmountSelect = (amt: number) => {
@@ -67,19 +61,12 @@ const PaymentBalanceModal: React.FC<PaymentBalanceModalProps> = ({
               ${
                 selectedMethod === method.key
                   ? "bg-[#18432e] text-[#13F195]"
-                  : method.comingSoon
-                  ? "bg-[#1E2836]/50 text-[#7A8895]/50 cursor-not-allowed"
                   : "bg-[#1E2836] text-[#7A8895] hover:bg-[#2C3A4D]"
               }
             `}
             aria-pressed={selectedMethod === method.key}
           >
             {method.label}
-            {method.comingSoon && (
-              <span className="absolute -top-1 -right-1 bg-yellow-500 text-black text-[10px] px-1 py-0.5 rounded-full">
-                Coming Soon
-              </span>
-            )}
           </button>
         ))}
       </div>

@@ -154,13 +154,13 @@ export const ConvertGuestUserModal: React.FC<ConvertGuestUserModalProps> = ({
             >
               Cancel
             </Button>
-            <Button
-              onClick={() => handleSubmit}
-              className="flex-1"
+            <button
+              type="submit"
+              className="flex-1 py-3 bg-[#13F195] text-black font-semibold rounded-lg hover:bg-[#0ddb7f] transition disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isLoading}
             >
               {isLoading ? "Converting..." : "Convert Account"}
-            </Button>
+            </button>
           </div>
         </form>
 

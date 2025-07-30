@@ -15,6 +15,7 @@ import { toast } from "react-toastify";
 import { updateCartItemLocally } from "@/store/bookings/bookingSlice";
 import { getAuthToken } from "@/utils/authCookies";
 import PaymentModal from "./PaymentModal";
+import { useGuestUser } from "@/hooks/useGuestUser";
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const dispatch = useAppDispatch();
   const drawerRef = useRef<HTMLDivElement>(null);
   const { user } = useAppSelector((state) => state.user);
+  const { initializeGuestUserForCart } = useGuestUser();
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
@@ -158,6 +160,19 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const handlePayment = async () => {
     if (!cartItems?.length) {
       return toast.warning("No items in cart to purchase.");
+    }
+
+    // Check if user needs guest user initialization
+    const token = getAuthToken();
+    if (!token) {
+      try {
+        // Initialize guest user when making payment from cart
+        await initializeGuestUserForCart();
+        toast.success("Guest session created! You can now make payments.");
+      } catch (error) {
+        toast.error("Failed to create guest session. Please try again.");
+        return;
+      }
     }
 
     console.log("DEBUG: Starting payment process for cart items:", cartItems);

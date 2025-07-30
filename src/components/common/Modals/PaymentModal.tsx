@@ -392,7 +392,7 @@ export default function PaymentModal({
         You are going to pay <span className="font-semibold">{totalPrice}$</span>
       </p>
       <div className="flex flex-col gap-4 mb-6">
-        <div className="grid md:grid-cols-4 grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-2 grid-cols-2 gap-4">
           <button
             onClick={() => setSelectedMethod("cryptomus")}
             className={`flex items-center gap-4 p-4 rounded-lg transition ${
@@ -438,24 +438,7 @@ export default function PaymentModal({
               </span>
             )}
           </button>
-          {/* Disabled payment methods */}
-          {[
-            { name: "CustomPay", comingSoon: true },
-            { name: "Stripe (Card)", comingSoon: true },
-          ].map(({ name }) => (
-            <button
-              key={name}
-              disabled
-              className="flex items-center gap-4 p-4 bg-[#1E2836] rounded-lg opacity-50 relative"
-            >
-              <div className="flex-1 text-left">
-                <h6 className="text-[#7A8895]">{name}</h6>
-              </div>
-              <span className="absolute top-[-10px] right-0 bg-yellow-500 text-black text-xs px-2 py-0.5 rounded-full">
-                Coming Soon
-              </span>
-            </button>
-          ))}
+
         </div>
         <div className="text-white mt-4">
           <span>Total:</span>{" "}

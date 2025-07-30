@@ -1,25 +1,8 @@
-"use client";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { SidebarProvider } from "@/context/SidebarContext";
-import { ThemeProvider } from "@/context/ThemeContext";
-import Providers from "@/store/Providers";
-import { ToastContainer } from "react-toastify";
-import dynamic from "next/dynamic";
-import "react-toastify/dist/ReactToastify.css";
-
+import ClientLayout from "../components/common/ClientLayout";
 
 const inter = Inter({ subsets: ["latin"] });
-
-// Dynamically import AuthInitializer with no SSR
-const AuthInitializer = dynamic(() => import("@/components/common/AuthInitializer"), {
-  ssr: false,
-});
-
-// Dynamically import GuestUserInitializer with no SSR
-const GuestUserInitializer = dynamic(() => import("@/components/common/GuestUserInitializer").then(mod => ({ default: mod.GuestUserInitializer })), {
-  ssr: false,
-});
 
 export default function RootLayout({
   children,
@@ -27,20 +10,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} dark:bg-[#030507]`}>
-        <Providers>
-          <AuthInitializer>
-            <GuestUserInitializer>
-              <ToastContainer position="top-right" autoClose={3000} />
-              <ThemeProvider>
-                <SidebarProvider>
-                  {children}
-                </SidebarProvider>
-              </ThemeProvider>
-            </GuestUserInitializer>
-          </AuthInitializer>
-        </Providers>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.className} dark:bg-[#030507]`} suppressHydrationWarning>
+        <ClientLayout>
+          {children}
+        </ClientLayout>
       </body>
     </html>
   );

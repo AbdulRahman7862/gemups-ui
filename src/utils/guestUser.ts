@@ -118,7 +118,13 @@ export const loginGuestUser = async (): Promise<GuestUserResponse> => {
  */
 export const convertToRegularUser = async (userData: ConvertToRegularUserData): Promise<GuestUserResponse> => {
   try {
+    console.log("DEBUG: Converting guest user to regular user");
+    console.log("DEBUG: Request data:", userData);
+    console.log("DEBUG: Request URL:", "/auth/signup");
+    
     const response = await axiosInstance.post<GuestUserResponse>("/auth/signup", userData);
+
+    console.log("DEBUG: Conversion response:", response.data);
 
     if (response.data.success) {
       // Update stored token
@@ -127,6 +133,8 @@ export const convertToRegularUser = async (userData: ConvertToRegularUserData): 
 
     return response.data;
   } catch (error: any) {
+    console.error("DEBUG: Conversion error:", error.response?.data);
+    console.error("DEBUG: Error status:", error.response?.status);
     throw new Error(error.response?.data?.message || "Failed to convert to regular user");
   }
 };

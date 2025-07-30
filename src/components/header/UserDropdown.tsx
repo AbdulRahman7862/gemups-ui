@@ -62,8 +62,8 @@ export default function UserDropdown() {
 
     // Check if user is a guest user
     if (user?.isGuest) {
-      // Guest users redirect to signin page
-      router.push("/signin");
+      // Guest users stay on the same page without guest session
+      // No redirect needed - they'll see the page without guest privileges
     } else {
       // Regular users redirect to proxy page
       router.push("/proxy");
