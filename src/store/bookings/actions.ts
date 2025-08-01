@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import { axiosInstance } from "../../utils/axiosInstance";
 import { v4 as uuidv4 } from "uuid";
 import { getAuthToken } from "@/utils/authCookies";
+import { calculateFlowBalance } from "@/utils/bytesToGB";
 
 interface CreatePaymentPayload {
   amount: string;
@@ -39,8 +40,14 @@ export const addToCart = createAsyncThunk<any, any>(
   async (data, thunkAPI) => {
     try {
       const response = await axiosInstance.post("/cart", data);
-
-      return response.data;
+      
+      // After adding to cart, fetch the updated cart to return
+      const cartResponse = await axiosInstance.get("/cart");
+      
+      return {
+        ...response.data,
+        updatedCart: cartResponse.data
+      };
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to add to cart");
       return thunkAPI.rejectWithValue(error.response?.data);
@@ -83,7 +90,14 @@ export const updateCartItem = createAsyncThunk<any, { id: string; data: any }>(
   async ({ id, data }, thunkAPI) => {
     try {
       const response = await axiosInstance.put(`/cart/${id}`, data);
-      return response.data;
+      
+      // After updating cart item, fetch the updated cart to return
+      const cartResponse = await axiosInstance.get("/cart");
+      
+      return {
+        ...response.data,
+        updatedCart: cartResponse.data
+      };
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update cart item");
       return thunkAPI.rejectWithValue(error.response?.data);
@@ -100,6 +114,76 @@ export const placeOrder = createAsyncThunk<any, any>(
       return response.data;
     } catch (error: any) {
       toast.error(error.response?.data?.error || "Failed to place order");
+      return thunkAPI.rejectWithValue(error.response?.data);
+    }
+  }
+);
+
+// Place Multiple Cart Orders - Process all cart items
+export const placeMultipleCartOrders = createAsyncThunk<any, {
+  cartItems: Array<{
+    productId: string;
+    quantity: number;
+    providerId: string;
+    tier?: {
+      userDataAmount: number;
+      unit: string;
+      price: number;
+      isPopular?: boolean;
+      quantity: number;
+    };
+    userDataAmount?: number;
+    unit?: string;
+    price?: number;
+    isPopular?: boolean;
+  }>;
+}>(
+  "order/placeMultipleCartOrders",
+  async (data, thunkAPI) => {
+    try {
+      const results = [];
+      
+      for (const cartItem of data.cartItems) {
+        // Calculate flow balance for each item
+        const userDataAmount = cartItem.tier?.userDataAmount || cartItem.userDataAmount || 1;
+        const unit = cartItem.tier?.unit || cartItem.unit || 'GB';
+        const quantity = cartItem.quantity;
+        
+        // Use utility function to calculate flow balance
+        const flowBalance = calculateFlowBalance(userDataAmount, unit, quantity);
+        
+        const orderPayload = {
+          productId: Number(cartItem.productId),
+          currency: "USD",
+          isOrder: true,
+          quantity: cartItem.quantity,
+          type: "cart",
+          providerId: cartItem.providerId,
+          createSingleOrder: true,
+          orderCount: 1,
+          flow: flowBalance.toString(),
+          selectedTier: {
+            userDataAmount: userDataAmount,
+            unit: unit,
+            price: cartItem.tier?.price || cartItem.price || 0,
+            isPopular: cartItem.tier?.isPopular || cartItem.isPopular || false,
+            quantity: cartItem.quantity
+          }
+        };
+        
+        console.log('DEBUG: Processing cart item with flow balance:', {
+          item: cartItem,
+          flowBalance,
+          orderPayload
+        });
+        
+        const response = await axiosInstance.post("/order/create-payment", orderPayload);
+        results.push(response.data);
+      }
+      
+      return { success: true, results };
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to place multiple orders");
       return thunkAPI.rejectWithValue(error.response?.data);
     }
   }

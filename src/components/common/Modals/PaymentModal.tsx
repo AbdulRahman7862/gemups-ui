@@ -4,6 +4,7 @@ import { createPaymentOrder, createProxyOrder, checkOrderStatus, getOrdersByUser
 import { getAuthToken } from "@/utils/authCookies";
 import { getUserBalance } from "@/store/user/actions";
 import { updateWalletBalance } from "@/store/user/userSlice";
+import { calculateFlowBalance } from "@/utils/bytesToGB";
 import { Loader } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
@@ -30,18 +31,7 @@ interface PaymentModalProps {
 
 // Utility function to calculate flow in bytes based on unit
 const calculateFlowInBytes = (amount: number, unit: string, quantity: number = 1) => {
-  const unitUpper = unit.toUpperCase();
-  
-  if (unitUpper === 'GB') {
-    return (amount * 1024 * 1024 * 1024) * quantity;
-  } else if (unitUpper === 'MB') {
-    return (amount * 1024 * 1024) * quantity;
-  } else if (unitUpper === 'KB') {
-    return (amount * 1024) * quantity;
-  } else {
-    // Default to bytes
-    return amount * quantity;
-  }
+  return calculateFlowBalance(amount, unit, quantity);
 };
 
 export default function PaymentModal({

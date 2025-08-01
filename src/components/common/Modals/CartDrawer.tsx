@@ -9,6 +9,7 @@ import {
   checkOrderStatus,
   getOrdersByUser,
   guestPayWithWallet,
+  placeMultipleCartOrders,
 } from "@/store/bookings/actions";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toast } from "react-toastify";
@@ -40,7 +41,23 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
     isOrderPaymentLoading,
     checkingOrderStatus,
   } = useAppSelector((state) => state.booking);
-  const total = cartItems?.reduce((acc, item) => acc + (item.amount || 0), 0) || 0;
+  
+  // Calculate total with debugging
+  const total = cartItems?.reduce((acc, item) => {
+    // Calculate the total amount for this item (price × quantity)
+    const itemTotal = item.tier?.price ? item.tier.price * item.quantity : item.amount || 0;
+    
+    console.log('DEBUG: Cart item total calculation:', {
+      itemId: item.id || item._id,
+      itemAmount: item.amount,
+      itemQuantity: item.quantity,
+      itemPrice: item.price || item.tier?.price,
+      calculatedAmount: itemTotal
+    });
+    return acc + itemTotal;
+  }, 0) || 0;
+  
+  console.log('DEBUG: Cart total calculation:', { total, cartItemsCount: cartItems?.length });
 
   const debounceTimers = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const DEBOUNCE_DELAY = 1000;
@@ -119,7 +136,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const handleQuantityChange = async (id: string, newQuantity: number) => {
     if (newQuantity < 1) return;
 
-    const item = cartItems.find((c) => c.id === id);
+    const item = cartItems.find((c) => (c.id || c._id) === id);
     if (!item) return;
 
     // Use the stored tier information from when the item was added to cart
@@ -137,7 +154,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   };
 
   const handleInputQuantityChange = (id: string, value: string) => {
-    const item = cartItems.find((c) => c.id === id);
+    const item = cartItems.find((c) => (c.id || c._id) === id);
     if (!item) return;
 
     if (value === "") {
@@ -181,15 +198,12 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
     localStorage.removeItem("pendingOrderId");
 
     try {
-      // Ensure we create only one order with the correct quantity
-      const cartItem = cartItems[0];
-      
       // Check if user is guest and use appropriate payment method
       if (user?.isGuest) {
         console.log('DEBUG: Guest user cart payment');
         
-        // For guest cart payment, we need to send cart items in the format the backend expects
-        const cartItemForPayment = {
+        // For guest cart payment, process all cart items
+        const cartItemsForPayment = cartItems.map(cartItem => ({
           productId: String(cartItem?.Product?.id),
           quantity: Number(cartItem.quantity),
           providerId: String(cartItem.providerId),
@@ -205,21 +219,20 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
           un_flow: cartItem.tier?.userDataAmount || cartItem.userDataAmount || 1,
           un_flow_used: 0,
           expire: Math.floor(Date.now() / 1000) + (90 * 24 * 60 * 60), // 90 days
-        };
+        }));
 
         const guestWalletPayload = {
-          // Include fields at root level for validation
-          productId: String(cartItem?.Product?.id),
-          quantity: Number(cartItem.quantity),
-          providerId: String(cartItem.providerId),
+          // Include fields at root level for validation (use first item as reference)
+          productId: String(cartItems[0]?.Product?.id),
+          quantity: Number(cartItems[0]?.quantity),
+          providerId: String(cartItems[0]?.providerId),
           type: "cart",
-          // Include cart array for processing
-          cart: [cartItemForPayment]
+          // Include cart array for processing all items
+          cart: cartItemsForPayment
         };
 
         console.log("DEBUG: Guest cart payment payload:", guestWalletPayload);
-        console.log("DEBUG: Cart item being sent:", cartItemForPayment);
-        console.log("DEBUG: Original cart item:", cartItem);
+        console.log("DEBUG: Cart items being sent:", cartItemsForPayment);
 
         const result = await dispatch(guestPayWithWallet(guestWalletPayload)).unwrap();
         
@@ -232,40 +245,42 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
           toast.error(result.error || "Guest cart payment failed.");
         }
       } else {
-        // Regular user cart payment (existing logic)
+        // Regular user cart payment - process all cart items
         console.log('DEBUG: Regular user cart payment');
         
-        const paymentPayload = {
-          productId: Number(cartItem?.Product?.id),
-          currency: "USD",
-          isOrder: true,
-          quantity: cartItem.quantity, // This should be the quantity within one order
-          type: "cart",
-          providerId: cartItem.providerId,
-          // Add additional fields to ensure single order creation
-          createSingleOrder: true,
-          orderCount: 1,
-        };
+        // Prepare cart items for processing
+        const cartItemsForProcessing = cartItems.map(cartItem => ({
+          productId: String(cartItem?.Product?.id),
+          quantity: Number(cartItem.quantity),
+          providerId: String(cartItem.providerId),
+          tier: {
+            userDataAmount: cartItem.tier?.userDataAmount || cartItem.userDataAmount || 1,
+            unit: cartItem.tier?.unit || cartItem.unit || 'GB',
+            price: cartItem.tier?.price || cartItem.price || 0,
+            isPopular: cartItem.tier?.isPopular || cartItem.isPopular || false,
+            quantity: cartItem.quantity
+          },
+          userDataAmount: cartItem.tier?.userDataAmount || cartItem.userDataAmount || 1,
+          unit: cartItem.tier?.unit || cartItem.unit || 'GB',
+          price: cartItem.tier?.price || cartItem.price || 0,
+          isPopular: cartItem.tier?.isPopular || cartItem.isPopular || false,
+        }));
 
-        console.log("DEBUG: Regular cart payment payload:", paymentPayload);
+        console.log("DEBUG: Regular cart items for processing:", cartItemsForProcessing);
 
-        const result = await dispatch(
-          createPaymentOrder(paymentPayload)
-        ).unwrap();
+        const result = await dispatch(placeMultipleCartOrders({
+          cartItems: cartItemsForProcessing
+        })).unwrap();
         
-        console.log("DEBUG: Payment order created successfully:", result);
+        console.log("DEBUG: Multiple cart orders created successfully:", result);
         
-        if (result?.data?.result?.url) {
-          // Store order_id for status checking when user returns
-          localStorage.setItem("pendingOrderId", result.data.result.order_id);
-          console.log("DEBUG: Stored order_id and redirecting to:", result.data.result.url);
-          window.location.href = result.data.result.url;
+        if (result.success) {
+          toast.success("Cart orders placed successfully!");
+          dispatch(getCartByUser());
+          onClose();
         } else {
-          throw new Error("Payment URL not found in response");
+          throw new Error("Failed to place cart orders");
         }
-
-        dispatch(getCartByUser());
-        onClose();
       }
     } catch (error: any) {
       console.error("DEBUG: Payment failed:", error);
@@ -382,6 +397,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
           ) : cartItems?.length ? (
             cartItems.map((item) => {
               const key = item?.id || item?._id || item?.productId;
+              const itemId = item?.id || item?._id;
               const imageSrc = item?.Product?.image;
               const imageAlt = item?.Product?.name || 'Cart item';
               return (
@@ -437,7 +453,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                           <button
                             className="w-7 h-7 rounded-full bg-[#1B222D] text-white"
                             onClick={() =>
-                              handleQuantityChange(item?.id, item?.quantity - 1)
+                              handleQuantityChange(itemId, item?.quantity - 1)
                             }
                           >
                             -
@@ -447,14 +463,14 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                             type="text"
                             inputMode="numeric"
                             onChange={(e) => {
-                              handleInputQuantityChange(item?.id, e.target.value);
+                              handleInputQuantityChange(itemId, e.target.value);
                             }}
                             className="w-20 text-center bg-gray-700 rounded text-lg text-white px-2 py-1 appearance-none focus:outline-none focus:ring-2 focus:ring-[#13F195]"
                           />
                           <button
                             className="w-7 h-7 rounded-full bg-[#1B222D] text-white"
                             onClick={() =>
-                              handleQuantityChange(item?.id, item?.quantity + 1)
+                              handleQuantityChange(itemId, item?.quantity + 1)
                             }
                             disabled={updatingItem}
                           >
@@ -463,25 +479,25 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                         </div>
                         <div className="text-right">
                           <p className="text-[16px] font-semibold text-[#13F195] whitespace-nowrap">
-                            {updatingItemId === item.id ? (
+                            {updatingItemId === itemId ? (
                               <Loader className="h-4 w-4 animate-spin text-[#13F195]" />
                             ) : (
-                              `$${item?.amount?.toLocaleString()}`
+                              `$${(item?.tier?.price ? item.tier.price * item.quantity : item?.amount || 0).toFixed(2)}`
                             )}
                           </p>
                           {item?.tier?.price && (
                             <p className="text-xs text-[#7A8895] whitespace-nowrap">
-                              ${item.tier.price} per {item?.unit || 'unit'}
+                              ${item.tier.price} × {item.quantity} = ${(item.tier.price * item.quantity).toFixed(2)}
                             </p>
                           )}
                         </div>
                         <button
                           className="text-gray-400 hover:text-red-400 w-7 h-7 flex items-center justify-center transition"
-                          onClick={() => handleDeleteItem(item?.id)}
+                          onClick={() => handleDeleteItem(itemId)}
                           aria-label="Delete item"
                           disabled={deletingItem}
                         >
-                          {deletingItemId === item.id ? (
+                          {deletingItemId === itemId ? (
                             <Loader className="h-4 w-4 animate-spin text-[#13F195]" />
                           ) : (
                             <Trash size={16} />

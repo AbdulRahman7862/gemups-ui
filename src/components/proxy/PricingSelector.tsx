@@ -6,6 +6,7 @@ import { getAuthToken } from "@/utils/authCookies";
 import { Loader, ShoppingCart } from "lucide-react";
 import { useGuestUser } from "@/hooks/useGuestUser";
 import { getOrCreateDeviceIdClient } from '@/utils/deviceId';
+import { getCartByUser } from "@/store/bookings/actions";
 
 interface Tier {
   isPopular: unknown;
@@ -86,12 +87,50 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
       }
     }
     
+    // Debug: Log the first cart item structure to understand the data format
+    if (cartItems && cartItems.length > 0) {
+      console.log('DEBUG: First cart item structure:', JSON.stringify(cartItems[0], null, 2));
+    }
+    
+    // Create a unique identifier for the cart item
     const currentTierId = `${selectedTier?.userDataAmount}-${selectedTier?.unit}`;
-    const existingItem = cartItems.find((item) => 
-      item?.Product?.id == productId && 
-      item?.providerId == providerId &&
-      item?.tierId === currentTierId
-    );
+    
+    console.log('DEBUG: Current cart items:', cartItems);
+    console.log('DEBUG: Looking for existing item with:', {
+      productId: String(productId),
+      providerId: String(providerId),
+      tierId: currentTierId
+    });
+    
+    // Find existing item with the same product, provider, and tier
+    const existingItem = cartItems.find((item) => {
+      // Get the product ID from the item - try multiple possible locations
+      const itemProductId = String(item?.Product?.id || item?.productId || item?.ProductId);
+      const itemProviderId = String(item?.providerId || item?.ProviderId);
+      
+      // Get tier ID from the item - try multiple possible locations
+      const itemTierId = item?.tierId || 
+                        `${item?.userDataAmount}-${item?.unit}` || 
+                        `${item?.tier?.userDataAmount}-${item?.tier?.unit}`;
+      
+      const isMatch = itemProductId === String(productId) && 
+                     itemProviderId === String(providerId) &&
+                     itemTierId === currentTierId;
+      
+      console.log('DEBUG: Checking item:', {
+        itemId: item?.id || item?._id,
+        itemProductId,
+        itemProviderId,
+        itemTierId,
+        currentTierId,
+        productIdMatch: itemProductId === String(productId),
+        providerIdMatch: itemProviderId === String(providerId),
+        tierIdMatch: itemTierId === currentTierId,
+        isMatch
+      });
+      
+      return isMatch;
+    });
 
     // Debug log for addToCart params
     const addToCartPayload = {
@@ -101,7 +140,7 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
       userDataAmount: selectedTier?.userDataAmount || 1,
       unit: selectedTier?.unit || 'GB',
       price: selectedTier?.price || 0,
-      tierId: `${selectedTier?.userDataAmount}-${selectedTier?.unit}`, // Unique identifier for the tier
+      tierId: currentTierId, // Unique identifier for the tier
       isPopular: selectedTier?.isPopular || false,
       // Include the full tier information for proper display
       tier: {
@@ -115,22 +154,27 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
       ...(typeof window !== 'undefined' && localStorage.getItem('user_uid') ? { user_uid: localStorage.getItem('user_uid') } : {})
     };
     console.log('DEBUG addToCart payload:', addToCartPayload);
+    console.log('DEBUG existing item found:', existingItem);
 
     try {
       if (existingItem) {
+        console.log('DEBUG: Updating existing cart item:', existingItem.id || existingItem._id, 'with new quantity:', existingItem.quantity + quantity);
         const newQuantity = existingItem.quantity + quantity;
 
-        await dispatch(
+        const result = await dispatch(
           updateCartItem({
-            id: existingItem.id,
+            id: existingItem.id || existingItem._id,
             data: {
               quantity: newQuantity,
             },
           })
         ).unwrap();
+        console.log('DEBUG: Update cart result:', result);
         toast.success("Cart updated successfully!");
       } else {
-        await dispatch(addToCart(addToCartPayload)).unwrap();
+        console.log('DEBUG: Adding new cart item');
+        const result = await dispatch(addToCart(addToCartPayload)).unwrap();
+        console.log('DEBUG: Add to cart result:', result);
         toast.success("Added to cart successfully!");
       }
 

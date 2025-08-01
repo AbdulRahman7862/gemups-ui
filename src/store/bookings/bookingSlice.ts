@@ -9,6 +9,7 @@ import {
   getOrderById,
   getOrdersByUser,
   placeOrder,
+  placeMultipleCartOrders,
   updateCartItem,
   getProxyOrderDetails,
   prolongProxyOrder,
@@ -82,8 +83,12 @@ const bookingSlice = createSlice({
       .addCase(addToCart.pending, (state) => {
         state.addingtoCart = true;
       })
-      .addCase(addToCart.fulfilled, (state) => {
+      .addCase(addToCart.fulfilled, (state, action) => {
         state.addingtoCart = false;
+        // Use the updated cart data from the response
+        if (action.payload?.updatedCart?.data) {
+          state.cartItems = action.payload.updatedCart.data;
+        }
       })
       .addCase(addToCart.rejected, (state, action: PayloadAction<any>) => {
         state.addingtoCart = false;
@@ -112,7 +117,7 @@ const bookingSlice = createSlice({
       .addCase(deleteCartItem.fulfilled, (state, action) => {
         state.deletingItem = false;
         const deletedId = action.meta.arg;
-        state.cartItems = state.cartItems.filter((item) => item._id !== deletedId);
+        state.cartItems = state.cartItems.filter((item) => (item.id || item._id) !== deletedId);
         toast.success("Item removed from cart");
       })
       .addCase(deleteCartItem.rejected, (state, action: PayloadAction<any>) => {
@@ -125,8 +130,12 @@ const bookingSlice = createSlice({
       .addCase(updateCartItem.pending, (state) => {
         state.updatingItem = true;
       })
-      .addCase(updateCartItem.fulfilled, (state) => {
+      .addCase(updateCartItem.fulfilled, (state, action) => {
         state.updatingItem = false;
+        // Use the updated cart data from the response
+        if (action.payload?.updatedCart?.data) {
+          state.cartItems = action.payload.updatedCart.data;
+        }
       })
       .addCase(updateCartItem.rejected, (state, action: PayloadAction<any>) => {
         state.updatingItem = false;
@@ -143,6 +152,25 @@ const bookingSlice = createSlice({
         state.orders.push(action.payload.data);
       })
       .addCase(placeOrder.rejected, (state) => {
+        state.placingOrder = false;
+      });
+
+    // Place Multiple Cart Orders
+    builder
+      .addCase(placeMultipleCartOrders.pending, (state) => {
+        state.placingOrder = true;
+      })
+      .addCase(placeMultipleCartOrders.fulfilled, (state, action) => {
+        state.placingOrder = false;
+        if (action.payload.success && action.payload.results) {
+          action.payload.results.forEach((result: any) => {
+            if (result.data) {
+              state.orders.push(result.data);
+            }
+          });
+        }
+      })
+      .addCase(placeMultipleCartOrders.rejected, (state) => {
         state.placingOrder = false;
       });
 
