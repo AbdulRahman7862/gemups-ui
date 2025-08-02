@@ -30,7 +30,6 @@ interface PaymentPayload {
     unit: string;
     price: number;
     isPopular?: boolean;
-    quantity: number;
   } | null;
 }
 
@@ -130,7 +129,6 @@ export const placeMultipleCartOrders = createAsyncThunk<any, {
       unit: string;
       price: number;
       isPopular?: boolean;
-      quantity: number;
     };
     userDataAmount?: number;
     unit?: string;
@@ -166,8 +164,7 @@ export const placeMultipleCartOrders = createAsyncThunk<any, {
             userDataAmount: userDataAmount,
             unit: unit,
             price: cartItem.tier?.price || cartItem.price || 0,
-            isPopular: cartItem.tier?.isPopular || cartItem.isPopular || false,
-            quantity: cartItem.quantity
+            isPopular: cartItem.tier?.isPopular || cartItem.isPopular || false
           }
         };
         

@@ -10,7 +10,6 @@ import { getCartByUser } from "@/store/bookings/actions";
 
 interface Tier {
   isPopular: unknown;
-  quantity: number;
   price: number;
   unit: string;
   userDataAmount: number;
@@ -66,8 +65,6 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
 
   const providerId = getProviderId();
 
-
-
   const handleAddToCart = async () => {
     if (!providerId) {
       toast.error("No provider found for this product.");
@@ -87,20 +84,8 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
       }
     }
     
-    // Debug: Log the first cart item structure to understand the data format
-    if (cartItems && cartItems.length > 0) {
-      console.log('DEBUG: First cart item structure:', JSON.stringify(cartItems[0], null, 2));
-    }
-    
-    // Create a unique identifier for the cart item
+    // Create a unique identifier for the cart item using userDataAmount and unit
     const currentTierId = `${selectedTier?.userDataAmount}-${selectedTier?.unit}`;
-    
-    console.log('DEBUG: Current cart items:', cartItems);
-    console.log('DEBUG: Looking for existing item with:', {
-      productId: String(productId),
-      providerId: String(providerId),
-      tierId: currentTierId
-    });
     
     // Find existing item with the same product, provider, and tier
     const existingItem = cartItems.find((item) => {
@@ -116,18 +101,6 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
       const isMatch = itemProductId === String(productId) && 
                      itemProviderId === String(providerId) &&
                      itemTierId === currentTierId;
-      
-      console.log('DEBUG: Checking item:', {
-        itemId: item?.id || item?._id,
-        itemProductId,
-        itemProviderId,
-        itemTierId,
-        currentTierId,
-        productIdMatch: itemProductId === String(productId),
-        providerIdMatch: itemProviderId === String(providerId),
-        tierIdMatch: itemTierId === currentTierId,
-        isMatch
-      });
       
       return isMatch;
     });
@@ -147,18 +120,14 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
         userDataAmount: selectedTier?.userDataAmount,
         unit: selectedTier?.unit,
         price: selectedTier?.price,
-        isPopular: selectedTier?.isPopular,
-        quantity: selectedTier?.quantity
+        isPopular: selectedTier?.isPopular
       },
       // Add user_uid if available
       ...(typeof window !== 'undefined' && localStorage.getItem('user_uid') ? { user_uid: localStorage.getItem('user_uid') } : {})
     };
-    console.log('DEBUG addToCart payload:', addToCartPayload);
-    console.log('DEBUG existing item found:', existingItem);
 
     try {
       if (existingItem) {
-        console.log('DEBUG: Updating existing cart item:', existingItem.id || existingItem._id, 'with new quantity:', existingItem.quantity + quantity);
         const newQuantity = existingItem.quantity + quantity;
 
         const result = await dispatch(
@@ -169,12 +138,9 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
             },
           })
         ).unwrap();
-        console.log('DEBUG: Update cart result:', result);
         toast.success("Cart updated successfully!");
       } else {
-        console.log('DEBUG: Adding new cart item');
         const result = await dispatch(addToCart(addToCartPayload)).unwrap();
-        console.log('DEBUG: Add to cart result:', result);
         toast.success("Added to cart successfully!");
       }
 
@@ -227,7 +193,7 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
           {popularTier && (
             <div
               className={`bg-[#7BB9FF0D] rounded-lg p-2 text-center relative mb-5 cursor-pointer border transition-all ${
-                selectedTier?.quantity === popularTier?.quantity
+                selectedTier?.userDataAmount === popularTier?.userDataAmount && selectedTier?.unit === popularTier?.unit
                   ? "border-[#13F195]"
                   : "border-transparent hover:border-green-400"
               }`}
@@ -251,7 +217,7 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
                 key={idx}
                 onClick={() => handleTierSelect(tier)}
                 className={`bg-[#7BB9FF0D] rounded-lg p-3 text-center mb-4 border transition-all cursor-pointer ${
-                  selectedTier?.quantity === tier?.quantity
+                  selectedTier?.userDataAmount === tier?.userDataAmount && selectedTier?.unit === tier?.unit
                     ? "border-[#13F195]"
                     : "border-transparent hover:border-green-400"
                 }`}
@@ -267,8 +233,6 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
             ))}
           </div>
           
-
-
           <div className="flex items-center justify-between mb-5 flex-wrap gap-y-2">
             <div className="flex items-center space-x-2">
               <button
@@ -289,11 +253,6 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
                   }
                   const value = parseInt(val);
                   if (!isNaN(value) && value >= 0) {
-                    if (selectedTier && value > selectedTier.quantity) {
-                      toast.error(`Available amount for this in stock is ${selectedTier.quantity}`);
-                      setQuantity(selectedTier.quantity);
-                      return;
-                    }
                     setQuantity(value);
                   }
                 }}
@@ -302,10 +261,6 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
               <button
                 onClick={() => {
                   const newQuantity = quantity + 1;
-                  if (selectedTier && newQuantity > selectedTier.quantity) {
-                    toast.error(`Available amount for this in stock is ${selectedTier.quantity}`);
-                    return;
-                  }
                   setQuantity(newQuantity);
                 }}
                 className="px-3 py-1 bg-gray-700 rounded text-lg text-[#7A8895]"

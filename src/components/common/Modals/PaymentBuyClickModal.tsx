@@ -29,18 +29,13 @@ interface PaymentBuyClickModalProps {
 const formatQuantityWithUnit = (tier: any) => {
   if (!tier) return "0";
   
-  // Check if the tier has a unit property
-  if (tier.unit) {
-    return `${tier.quantity} ${tier.unit}`;
-  }
-  
-  // Check if the tier has userDataAmount and unit properties
+  // Use userDataAmount and unit for the new API structure
   if (tier.userDataAmount && tier.unit) {
     return `${tier.userDataAmount} ${tier.unit}`;
   }
   
-  // Fallback to quantity with GB (for backward compatibility)
-  return `${tier.quantity} GB`;
+  // Fallback to userDataAmount with GB (for backward compatibility)
+  return `${tier.userDataAmount || 1} GB`;
 };
 
 const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
@@ -69,24 +64,14 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
     if (!tier) return;
     console.log('DEBUG: Tier selected:', tier);
     setSelectedTier(tier);
-    setQuantity(tier?.quantity);
+    setQuantity(1); // Default to 1 since quantity is no longer part of tier
   };
 
   const calculateTotalPrice = () => {
-    if (!pricingPlans || pricingPlans.length === 0) return "0.00";
-
-    const sortedTiers = [...pricingPlans].sort((a, b) => a.quantity - b.quantity);
-    let pricePerPc = sortedTiers[0]?.price;
-
-    for (let i = 0; i < sortedTiers.length; i++) {
-      if (quantity >= sortedTiers[i].quantity) {
-        pricePerPc = sortedTiers[i].price;
-      } else {
-        break;
-      }
-    }
-
-    return (quantity * pricePerPc).toFixed(2);
+    if (!selectedTier) return "0.00";
+    
+    // Calculate total price based on selected tier price and quantity
+    return (quantity * selectedTier.price).toFixed(2);
   };
 
   const handleBuyClick = async () => {
@@ -139,7 +124,7 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
             flow: (() => {
               if (!selectedTier) return (1 * 1024 * 1024 * 1024).toString(); // Default to 1 GB
               
-              const amount = selectedTier.userDataAmount || selectedTier.quantity || 1;
+              const amount = selectedTier.userDataAmount || 1;
               const unit = selectedTier.unit || 'GB';
               
               // Convert to bytes based on unit
@@ -231,7 +216,7 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
     if (pricingPlans?.length > 0) {
       const initialTier = popularTier || pricingPlans[0];
       if (initialTier && !selectedTier) {
-        setQuantity(initialTier.quantity);
+        setQuantity(1); // Default to 1 since quantity is no longer part of tier
         setSelectedTier(initialTier);
       }
     }
@@ -266,7 +251,7 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
               {popularTier && (
                 <div
                   className={`bg-[#7BB9FF0D] rounded-lg p-2 text-center relative mb-5 cursor-pointer border transition-all ${
-                    selectedTier?.quantity === popularTier?.quantity
+                    selectedTier?.userDataAmount === popularTier?.userDataAmount && selectedTier?.unit === popularTier?.unit
                       ? "border-[#13F195]"
                       : "border-transparent hover:border-green-400"
                   }`}
@@ -290,7 +275,7 @@ const PaymentBuyClickModal: React.FC<PaymentBuyClickModalProps> = ({
                     key={idx}
                     onClick={() => handleTierSelect(tier)}
                     className={`bg-[#7BB9FF0D] rounded-lg p-3 text-center mb-4 border transition-all cursor-pointer ${
-                      selectedTier?.quantity === tier?.quantity
+                      selectedTier?.userDataAmount === tier?.userDataAmount && selectedTier?.unit === tier?.unit
                         ? "border-[#13F195]"
                         : "border-transparent hover:border-green-400"
                     }`}
