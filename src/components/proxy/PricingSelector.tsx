@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addToCart, updateCartItem } from "@/store/bookings/actions";
 import { toast } from "react-toastify";
@@ -53,6 +53,174 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
 
   const popularTier = pricingPlans?.find((tier) => tier?.isPopular);
   const otherTiers = pricingPlans?.filter((tier) => !tier?.isPopular);
+
+  // Function to convert data to MB for comparison
+  const convertToMB = (amount: number, unit: string): number => {
+    switch (unit.toUpperCase()) {
+      case 'KB':
+        return amount / 1024;
+      case 'MB':
+        return amount;
+      case 'GB':
+        return amount * 1024;
+      case 'TB':
+        return amount * 1024 * 1024;
+      default:
+        return amount; // Assume MB if unit is not recognized
+    }
+  };
+
+  // Function to find the best offer based on current quantity and selected tier
+  const findBestOffer = (currentQuantity: number, currentTier: Tier | undefined) => {
+    if (!currentTier || !pricingPlans || pricingPlans.length === 0) {
+      return currentTier;
+    }
+
+    // Calculate the current total price and data needed (convert to MB for comparison)
+    const currentTotalPrice = currentTier.price * currentQuantity;
+    const currentTotalDataMB = convertToMB(currentTier.userDataAmount, currentTier.unit) * currentQuantity;
+    
+    console.log('DEBUG - Current selection:', {
+      tier: currentTier,
+      quantity: currentQuantity,
+      totalPrice: currentTotalPrice,
+      totalData: currentTotalDataMB,
+      unit: currentTier.unit
+    });
+    
+    console.log('DEBUG - All available pricing plans:', pricingPlans);
+    
+    // Find all tiers that provide more data for the same or lower price
+    const betterTiers = pricingPlans.filter(tier => {
+      // Convert tier data to MB for comparison
+      const tierDataMB = convertToMB(tier.userDataAmount, tier.unit);
+      // Check if this tier provides more data for the same or lower price
+      const isBetter = tier.price <= currentTotalPrice && tierDataMB > currentTotalDataMB;
+      
+      console.log('DEBUG - Checking tier:', {
+        tier: tier,
+        price: tier.price,
+        data: tier.userDataAmount,
+        unit: tier.unit,
+        isBetter: isBetter,
+        condition1: tier.price <= currentTotalPrice,
+        condition2: tierDataMB > currentTotalDataMB,
+        currentTotalPrice: currentTotalPrice,
+        currentTotalData: currentTotalDataMB,
+        tierDataMB: tierDataMB
+      });
+      
+      return isBetter;
+    });
+
+    console.log('DEBUG - Better tiers found:', betterTiers);
+
+    if (betterTiers.length === 0) {
+      return currentTier; // No better option found
+    }
+
+    // Calculate value for money (data per dollar) for each better tier
+    const tiersWithValue = betterTiers.map(tier => {
+      const tierDataMB = convertToMB(tier.userDataAmount, tier.unit);
+      const dataPerDollar = tierDataMB / tier.price;
+      return {
+        ...tier,
+        dataPerDollar,
+        totalPrice: tier.price,
+        totalData: tierDataMB
+      };
+    });
+
+    // Sort by data per dollar (highest first) and then by total data (highest first)
+    tiersWithValue.sort((a, b) => {
+      if (Math.abs(a.dataPerDollar - b.dataPerDollar) < 0.01) {
+        // If value for money is very similar, prefer the one with more total data
+        return b.totalData - a.totalData;
+      }
+      return b.dataPerDollar - a.dataPerDollar;
+    });
+
+    console.log('DEBUG - Best tier selected:', tiersWithValue[0]);
+    
+    // Return the best tier (highest value for money)
+    return tiersWithValue[0];
+  };
+
+  // Function to handle quantity increase with automatic best offer selection
+  const handleQuantityIncrease = () => {
+    const newQuantity = quantity + 1;
+    setQuantity(newQuantity);
+    
+    // Find the best offer for the new quantity
+    const bestOffer = findBestOffer(newQuantity, selectedTier);
+    
+    // If a better offer is found, automatically select it
+    if (bestOffer && bestOffer !== selectedTier && selectedTier) {
+      const currentTotalData = selectedTier.userDataAmount * newQuantity;
+      const bestOfferData = bestOffer.userDataAmount;
+      const dataIncrease = ((bestOfferData - currentTotalData) / currentTotalData) * 100;
+      
+      handleTierSelect(bestOffer);
+      // Show notification for a few seconds
+      setSavingsAmount(dataIncrease);
+      setShowBetterOfferNotification(true);
+      setTimeout(() => setShowBetterOfferNotification(false), 3000);
+    }
+  };
+
+  const [showBetterOfferNotification, setShowBetterOfferNotification] = useState(false);
+  const [savingsAmount, setSavingsAmount] = useState(0);
+
+  // Effect to check for better offers when quantity changes
+  useEffect(() => {
+    if (quantity > 1 && selectedTier) {
+      console.log('DEBUG - useEffect triggered with quantity:', quantity);
+      const bestOffer = findBestOffer(quantity, selectedTier);
+      if (bestOffer && bestOffer !== selectedTier) {
+        // Only auto-select if it provides significantly more data (more than 10% increase)
+        const currentTotalDataMB = convertToMB(selectedTier.userDataAmount, selectedTier.unit) * quantity;
+        const bestOfferDataMB = convertToMB(bestOffer.userDataAmount, bestOffer.unit);
+        const dataIncrease = (bestOfferDataMB - currentTotalDataMB) / currentTotalDataMB;
+        
+        console.log('DEBUG - Data increase calculation:', {
+          currentTotalDataMB,
+          bestOfferDataMB,
+          dataIncrease,
+          threshold: 0.1
+        });
+        
+        if (dataIncrease > 0.1) { // 10% threshold for data increase
+          console.log('DEBUG - Auto-selecting better offer:', bestOffer);
+          handleTierSelect(bestOffer);
+          // Show notification for a few seconds
+          setSavingsAmount(dataIncrease * 100);
+          setShowBetterOfferNotification(true);
+          setTimeout(() => setShowBetterOfferNotification(false), 3000);
+        }
+      }
+    }
+  }, [quantity, selectedTier, pricingPlans]);
+
+  // Effect to check for better offers when component mounts or pricing plans change
+  useEffect(() => {
+    if (quantity > 1 && selectedTier && pricingPlans.length > 0) {
+      console.log('DEBUG - Initial check for better offers');
+      const bestOffer = findBestOffer(quantity, selectedTier);
+      if (bestOffer && bestOffer !== selectedTier) {
+        const currentTotalDataMB = convertToMB(selectedTier.userDataAmount, selectedTier.unit) * quantity;
+        const bestOfferDataMB = convertToMB(bestOffer.userDataAmount, bestOffer.unit);
+        const dataIncrease = (bestOfferDataMB - currentTotalDataMB) / currentTotalDataMB;
+        
+        if (dataIncrease > 0.1) {
+          console.log('DEBUG - Auto-selecting better offer on mount:', bestOffer);
+          handleTierSelect(bestOffer);
+          setSavingsAmount(dataIncrease * 100);
+          setShowBetterOfferNotification(true);
+          setTimeout(() => setShowBetterOfferNotification(false), 3000);
+        }
+      }
+    }
+  }, [pricingPlans, selectedTier]); // Only run when pricing plans or selected tier changes
 
   // Helper to get providerId using the same logic as the parent page
   const getProviderId = () => {
@@ -156,6 +324,18 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
 
   return (
     <div className="bg-[#090E15] p-6 rounded-xl text-white font-sans">
+      {/* Better Offer Notification */}
+      {showBetterOfferNotification && (
+        <div className="mb-4 p-3 bg-[#090E15] border border-[#13F195] rounded-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-[#13F195] text-sm">✨</span>
+            <span className="text-white text-sm font-medium">
+              Better value automatically selected! +{savingsAmount.toFixed(0)}% more data for the same price
+            </span>
+          </div>
+        </div>
+      )}
+      
       {/* Current Provider Display */}
       {selectedProxy?.providers?.[0]?.providerId && (
         <div className="mb-4">
@@ -254,15 +434,31 @@ const PricingSelector: React.FC<PricingSelectorProps> = ({
                   const value = parseInt(val);
                   if (!isNaN(value) && value >= 0) {
                     setQuantity(value);
+                    // Check for better offers when quantity is manually changed
+                    if (value > 1 && selectedTier) {
+                      setTimeout(() => {
+                        const bestOffer = findBestOffer(value, selectedTier);
+                        if (bestOffer && bestOffer !== selectedTier) {
+                          const currentTotalData = selectedTier.userDataAmount * value;
+                          const bestOfferData = bestOffer.userDataAmount;
+                          const dataIncrease = (bestOfferData - currentTotalData) / currentTotalData;
+                          
+                          if (dataIncrease > 0.1) { // 10% threshold for data increase
+                            handleTierSelect(bestOffer);
+                            // Show notification for a few seconds
+                            setSavingsAmount(dataIncrease * 100);
+                            setShowBetterOfferNotification(true);
+                            setTimeout(() => setShowBetterOfferNotification(false), 3000);
+                          }
+                        }
+                      }, 100); // Small delay to ensure state is updated
+                    }
                   }
                 }}
                 className="w-20 text-center bg-gray-700 rounded text-lg text-white px-2 py-1 appearance-none focus:outline-none focus:ring-2 focus:ring-[#13F195]"
               />
               <button
-                onClick={() => {
-                  const newQuantity = quantity + 1;
-                  setQuantity(newQuantity);
-                }}
+                onClick={handleQuantityIncrease}
                 className="px-3 py-1 bg-gray-700 rounded text-lg text-[#7A8895]"
               >
                 +
